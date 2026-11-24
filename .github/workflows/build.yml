@@ -1,6 +1,6 @@
 name: build
 
-# Builds the eGN Windows binary on every push to dev and main.
+# Builds the eGNnet Windows binary on every push to dev and main.
 #
 #   dev  branch -> build tagged with env "dev"  (development update channel)
 #   main branch -> build tagged with env "prod" (production update channel)
@@ -55,15 +55,15 @@ jobs:
           CGO_ENABLED: '0'
         run: |
           VERSION="0.1.0-${APP_ENV}+${COMMIT}"
-          echo "Building eGN.exe  env=${APP_ENV}  version=${VERSION}"
+          echo "Building eGNnet.exe  env=${APP_ENV}  version=${VERSION}"
           go build -trimpath \
             -ldflags "-s -w -X main.appEnv=${APP_ENV} -X main.version=${VERSION} -X main.commit=${COMMIT}" \
-            -o dist/eGN.exe .
+            -o dist/eGNnet.exe .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: eGN-${{ steps.env.outputs.app_env }}-${{ steps.env.outputs.commit }}
-          path: dist/eGN.exe
+          name: eGNnet-${{ steps.env.outputs.app_env }}-${{ steps.env.outputs.commit }}
+          path: dist/eGNnet.exe
           if-no-files-found: error
           retention-days: 30

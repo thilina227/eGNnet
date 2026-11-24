@@ -1,4 +1,4 @@
--- eGN schema — Grama Niladhari household records
+-- eGNnet schema — Grama Niladhari household records
 -- SQLite. UUIDs stored as TEXT, booleans as INTEGER (0/1), dates/datetimes as ISO TEXT.
 PRAGMA foreign_keys = ON;
 

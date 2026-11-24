@@ -1,4 +1,4 @@
--- eGN seed data (auto-generated). Sinhala labels included; Tamil to be filled later.
+-- eGNnet seed data (auto-generated). Sinhala labels included; Tamil to be filled later.
 PRAGMA foreign_keys = ON;
 
 INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_WP','WP','Western','බස්නාහිර');
