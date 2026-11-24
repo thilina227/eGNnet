@@ -80,6 +80,16 @@ GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o eGNnet.exe .
 GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o egnnet .
 ```
 
-On Ubuntu you can also just run `go build -o egnnet .` natively. The CI pipeline
-(`.github/workflows/build.yml`) builds both the Windows and Linux binaries on every push
-and uploads them as artifacts.
+On Ubuntu you can also just run `go build -o egnnet .` natively.
+
+## Branches, CI & releases
+
+- **`dev`** — development line. Every push and PR runs `.github/workflows/build.yml`, which
+  compiles the Windows + Linux binaries (tagged `env=dev`) and uploads them as build artifacts.
+- **`main`** — production line. Merging `dev` → `main` runs `.github/workflows/release.yml`, which
+  builds the production (`env=prod`) binaries and publishes a **GitHub Release** with
+  `eGNnet.exe`, `egnnet-linux-amd64` and `SHA256SUMS.txt` attached.
+
+The release version comes from the [`VERSION`](VERSION) file; each release is tagged
+`v<VERSION>-build.<run>`. Bump `VERSION` to roll the base version. Every binary reports its
+own build at `GET /api/version`.

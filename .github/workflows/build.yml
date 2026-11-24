@@ -1,21 +1,20 @@
 name: build
 
-# Builds the eGNnet binaries on every push to dev and main.
-#
-#   dev  branch -> builds tagged with env "dev"  (development update channel)
-#   main branch -> builds tagged with env "prod" (production update channel)
+# CI build. Runs on pushes to dev and on pull requests to dev/main, producing
+# dev-tagged binaries as downloadable artifacts (a sanity check that the code
+# compiles for both targets). Pushes to main are handled by release.yml, which
+# builds the prod binaries and publishes a GitHub Release.
 #
 # Targets (pure Go, no CGO, so all cross-compile from the same ubuntu runner):
 #   - windows/amd64 -> eGNnet.exe
 #   - linux/amd64   -> egnnet   (Ubuntu / other Linux)
 #
 # The chosen environment is baked into each binary via -ldflags (see buildinfo.go),
-# so a running copy reports its own channel at GET /api/version. This is the
-# foundation for the future automated per-channel update mechanism.
+# so a running copy reports its own channel at GET /api/version.
 
 on:
   push:
-    branches: [main, dev]
+    branches: [dev]
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
