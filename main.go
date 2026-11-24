@@ -40,7 +40,7 @@ func main() {
 	logger.write("info", "system", "", "", "startup",
 		fmt.Sprintf("eGNnet %s env=%s commit=%s", version, appEnv, commit))
 
-	srv := newServer(db, logger)
+	srv := newServer(db, logger, dataDir)
 	httpSrv := &http.Server{
 		Addr:         *addr,
 		Handler:      srv.routes(),
