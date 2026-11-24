@@ -304,7 +304,8 @@ async function renderHousehold(id) {
       <div class="row-actions"><button class="btn" id="h_save">${esc(t("save"))}</button></div>
     </div>
     <div class="card" id="membersCard"></div>
-    <div class="card" id="welfareCard"></div>`;
+    <div class="card" id="welfareCard"></div>
+    <div class="card" id="assetsCard"></div>`;
 
   root.querySelector("#back").onclick = () => { state.view = { name: "households" }; renderCurrent(); };
 
@@ -330,6 +331,7 @@ async function renderHousehold(id) {
 
   renderMembers(id, hh.members || []);
   renderWelfare(id, hh.welfare || []);
+  renderAssets(id);
 }
 
 function renderMembers(householdId, members) {
@@ -434,6 +436,131 @@ async function reloadHousehold(id) {
   const hh = await api("GET", "/api/households/" + id);
   renderMembers(id, hh.members || []);
   renderWelfare(id, hh.welfare || []);
+  renderAssets(id);
+}
+
+// ---------- assets & economy ----------
+const ASSET_SECTIONS = [
+  { coll: "land_holding", title: "land_holdings", fields: [
+    { k: "land_class", t: "land_class", type: "lookup", cat: "land_class" },
+    { k: "tenure_type", t: "land_tenure", type: "lookup", cat: "land_tenure" },
+    { k: "acres", t: "acres", type: "number" }, { k: "roods", t: "roods", type: "number" }, { k: "perches", t: "perches", type: "number" },
+    { k: "is_main", t: "is_main", type: "bool" }, { k: "notes", t: "notes", type: "text" } ] },
+  { coll: "land_crop", title: "crops", fields: [
+    { k: "crop_type", t: "crop_type", type: "lookup", cat: "crop_type" },
+    { k: "extent_or_trees", t: "extent_or_trees", type: "text" }, { k: "is_main", t: "is_main", type: "bool" } ] },
+  { coll: "paddy_cultivation", title: "paddy", fields: [
+    { k: "season", t: "season", type: "lookup", cat: "paddy_season" }, { k: "extent", t: "extent_or_trees", type: "text" }, { k: "method", t: "method", type: "text" } ] },
+  { coll: "livestock", title: "livestock", fields: [
+    { k: "animal_type", t: "animal_type", type: "lookup", cat: "livestock_type" }, { k: "count", t: "count", type: "number" } ] },
+  { coll: "poultry", title: "poultry", fields: [
+    { k: "poultry_type", t: "poultry_type", type: "lookup", cat: "poultry_type" }, { k: "count", t: "count", type: "number" } ] },
+  { coll: "appliance", title: "appliances", fields: [
+    { k: "appliance_type", t: "appliance_type", type: "lookup", cat: "appliance_type" }, { k: "count", t: "count", type: "number" } ] },
+  { coll: "vehicle", title: "vehicles", fields: [
+    { k: "vehicle_type", t: "vehicle_type", type: "lookup", cat: "vehicle_type" }, { k: "registration_no", t: "registration_no", type: "text" },
+    { k: "count", t: "count", type: "number" }, { k: "income_use", t: "income_use", type: "bool" } ] },
+  { coll: "equipment", title: "equipment", fields: [
+    { k: "equipment_type", t: "equipment_type", type: "lookup", cat: "equipment_type" }, { k: "count", t: "count", type: "number" }, { k: "income_use", t: "income_use", type: "bool" } ] },
+  { coll: "permit", title: "permits", fields: [
+    { k: "permit_type", t: "permit_type", type: "lookup", cat: "permit_type" }, { k: "permit_no", t: "permit_no", type: "text" },
+    { k: "holder_name", t: "holder_name", type: "text" }, { k: "valid_until", t: "valid_until", type: "date" } ] },
+  { coll: "loan", title: "loans", fields: [
+    { k: "is_microfinance", t: "microfinance", type: "bool" }, { k: "provider", t: "provider", type: "lookup", cat: "loan_provider" }, { k: "details", t: "details", type: "text" } ] },
+  { coll: "state_aid", title: "state_aid", fields: [
+    { k: "project", t: "project", type: "text" }, { k: "year", t: "year", type: "number" }, { k: "aid_item", t: "aid_item", type: "text" }, { k: "progress", t: "progress", type: "text" } ] },
+  { coll: "income_source", title: "income_sources", fields: [
+    { k: "source_type", t: "source_type", type: "lookup", cat: "income_source" } ] },
+  { coll: "monthly_expense", title: "monthly_expenses", fields: [
+    { k: "category", t: "expense_category", type: "lookup", cat: "expense_category" }, { k: "amount", t: "amount", type: "number" } ] },
+];
+
+function assetCell(f, row) {
+  const v = row[f.k];
+  if (f.type === "bool") return (String(v) === "1" || v === true) ? esc(t("yes")) : (v == null || v === "" ? "—" : esc(t("no")));
+  if (f.type === "lookup") return esc(lookupName(f.cat, v)) || "—";
+  return (v == null || v === "") ? "—" : esc(v);
+}
+
+async function renderAssets(householdId) {
+  const card = document.getElementById("assetsCard");
+  if (!card) return;
+  if (!householdId) { card.innerHTML = ""; return; }
+  const data = await api("GET", "/api/households/" + householdId + "/assets").catch(() => ({}));
+  const fin = (data && data.household_finance) || {};
+  let html = `<div class="section-sub"><h3>${esc(t("assets_economy"))}</h3></div>
+    <div class="toolbar">
+      <div class="field grow"><label>${esc(t("monthly_income_bracket"))}</label>
+        <select id="fin_bracket">${options("income_bracket", fin.monthly_income_bracket, true)}</select></div>
+      <button class="btn sec" id="fin_save">${esc(t("save"))}</button>
+    </div>`;
+  for (const sec of ASSET_SECTIONS) {
+    const rows = (data && data[sec.coll]) || [];
+    html += `<div class="section-sub" style="margin-top:1rem"><h4>${esc(t(sec.title))}</h4>
+        <button class="btn sec sm" data-add="${sec.coll}">+ ${esc(t("add_row"))}</button></div>
+      <table><thead><tr>${sec.fields.map(f => `<th>${esc(t(f.t))}</th>`).join("")}<th></th></tr></thead>
+      <tbody>${rows.length ? rows.map(r => `<tr>
+          ${sec.fields.map(f => `<td>${assetCell(f, r)}</td>`).join("")}
+          <td style="text-align:right"><button class="btn sec sm" data-edit="${sec.coll}|${esc(r.id)}">${esc(t("edit"))}</button>
+            <button class="btn danger sm" data-del="${sec.coll}|${esc(r.id)}">${esc(t("delete"))}</button></td></tr>`).join("")
+        : `<tr><td colspan="${sec.fields.length + 1}" class="empty">—</td></tr>`}</tbody></table>`;
+  }
+  card.innerHTML = html;
+  card.querySelector("#fin_save").onclick = async () => {
+    try { await api("PUT", "/api/households/" + householdId + "/finance", { monthly_income_bracket: card.querySelector("#fin_bracket").value }); toast(t("saved")); }
+    catch (e) { toast(e.message); }
+  };
+  card.querySelectorAll("[data-add]").forEach(b => b.onclick = () => assetModal(householdId, b.dataset.add, null));
+  card.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => {
+    const [coll, rid] = b.dataset.edit.split("|");
+    const row = ((data && data[coll]) || []).find(x => x.id === rid);
+    assetModal(householdId, coll, row);
+  });
+  card.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    const [coll, rid] = b.dataset.del.split("|");
+    if (!confirm(t("confirm_delete"))) return;
+    await api("DELETE", "/api/assets/" + coll + "/" + rid); renderAssets(householdId);
+  });
+}
+
+function assetModal(householdId, coll, row) {
+  row = row || {};
+  const sec = ASSET_SECTIONS.find(s => s.coll === coll);
+  const inputFor = (f) => {
+    const id = "a_" + f.k;
+    if (f.type === "lookup") return `<select id="${id}">${options(f.cat, row[f.k], true)}</select>`;
+    if (f.type === "bool") return `<select id="${id}">
+        <option value="">${esc(t("none_selected"))}</option>
+        <option value="1" ${String(row[f.k]) === "1" || row[f.k] === true ? "selected" : ""}>${esc(t("yes"))}</option>
+        <option value="0" ${String(row[f.k]) === "0" || row[f.k] === false ? "selected" : ""}>${esc(t("no"))}</option></select>`;
+    if (f.type === "number") return `<input id="${id}" type="number" step="any" value="${esc(row[f.k])}">`;
+    if (f.type === "date") return `<input id="${id}" type="date" value="${esc(row[f.k])}">`;
+    return `<input id="${id}" value="${esc(row[f.k])}">`;
+  };
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal"><h2>${esc(row.id ? t("edit") : t("add_row"))} — ${esc(t(sec.title))}</h2>
+    <div class="grid g2">${sec.fields.map(f => `<div class="field"><label>${esc(t(f.t))}</label>${inputFor(f)}</div>`).join("")}</div>
+    <div class="row-actions"><button class="btn sec" id="a_cancel">${esc(t("cancel"))}</button><button class="btn" id="a_save">${esc(t("save"))}</button></div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector("#a_cancel").onclick = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  bg.querySelector("#a_save").onclick = async () => {
+    const body = {};
+    for (const f of sec.fields) {
+      const el = bg.querySelector("#a_" + f.k);
+      let v = el.value;
+      if (f.type === "number") v = v === "" ? null : Number(v);
+      else if (f.type === "bool") v = v === "" ? null : Number(v);
+      else v = v.trim();
+      body[f.k] = v;
+    }
+    try {
+      if (row.id) await api("PUT", "/api/assets/" + coll + "/" + row.id, body);
+      else await api("POST", "/api/households/" + householdId + "/assets/" + coll, body);
+      bg.remove(); renderAssets(householdId); toast(t("saved"));
+    } catch (e) { toast(e.message); }
+  };
 }
 
 boot();

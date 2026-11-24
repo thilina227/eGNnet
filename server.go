@@ -61,6 +61,13 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /api/welfare-programs", s.auth(s.handleWelfarePrograms))
 	mux.Handle("GET /api/my-divisions", s.auth(s.handleMyDivisions))
 
+	// asset & economy collections (household children)
+	mux.Handle("GET /api/households/{id}/assets", s.auth(s.handleAssetsGet))
+	mux.Handle("POST /api/households/{id}/assets/{collection}", s.auth(s.handleAssetCreate))
+	mux.Handle("PUT /api/assets/{collection}/{id}", s.auth(s.handleAssetUpdate))
+	mux.Handle("DELETE /api/assets/{collection}/{id}", s.auth(s.handleAssetDelete))
+	mux.Handle("PUT /api/households/{id}/finance", s.auth(s.handleFinanceUpsert))
+
 	// --- static UI ---
 	sub, _ := fs.Sub(webFS, "internal/web")
 	fileServer := http.FileServer(http.FS(sub))
