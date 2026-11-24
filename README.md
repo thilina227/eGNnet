@@ -1,4 +1,10 @@
-# eGNnet — Grama Niladhari household records
+# eGNnet
+
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Release](https://img.shields.io/github/v/release/thilina227/eGNnet?label=Release&color=green)](https://github.com/thilina227/eGNnet/releases)
+[![Platforms](https://img.shields.io/badge/Platforms-Windows%20%7C%20Linux-informational.svg)](#branches-ci--releases)
+
+**Grama Niladhari household records.**
 
 A trilingual (English / Sinhala / Tamil-ready) household records system for Sri Lankan
 Grama Niladhari divisions. Single self-contained executable with an embedded web server and
