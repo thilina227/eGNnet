@@ -75,6 +75,14 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("DELETE /api/assets/{collection}/{id}", s.auth(s.handleAssetDelete))
 	mux.Handle("PUT /api/households/{id}/finance", s.auth(s.handleFinanceUpsert))
 
+	// --- office inventory (division-scoped stock register + history) ---
+	mux.Handle("GET /api/inventory", s.auth(s.handleInventoryList))
+	mux.Handle("POST /api/inventory", s.auth(s.handleInventoryCreate))
+	mux.Handle("PUT /api/inventory/{id}", s.auth(s.handleInventoryUpdate))
+	mux.Handle("DELETE /api/inventory/{id}", s.auth(s.handleInventoryDelete))
+	mux.Handle("GET /api/inventory/{id}/txns", s.auth(s.handleInventoryTxns))
+	mux.Handle("POST /api/inventory/{id}/txns", s.auth(s.handleInventoryTxnCreate))
+
 	// --- application log / retention (admin settings) ---
 	mux.Handle("GET /api/admin/logs", s.auth(s.handleLogList))
 	mux.Handle("GET /api/admin/log-config", s.auth(s.handleLogConfigGet))

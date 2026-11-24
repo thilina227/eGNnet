@@ -469,3 +469,34 @@ CREATE TABLE IF NOT EXISTS app_log (
 );
 CREATE INDEX IF NOT EXISTS ix_applog_time ON app_log(created_at);
 CREATE INDEX IF NOT EXISTS ix_applog_cat ON app_log(category, created_at);
+
+-- Office inventory: a stock register (inventory_item) with a movement
+-- history (inventory_txn). Division-scoped, like households.
+CREATE TABLE IF NOT EXISTS inventory_item (
+  id             TEXT PRIMARY KEY,
+  gn_division_id TEXT NOT NULL REFERENCES gn_division(id),
+  name           TEXT NOT NULL,
+  category       TEXT,
+  unit           TEXT,                      -- pcs, box, kg, ...
+  quantity       REAL NOT NULL DEFAULT 0,   -- running balance
+  min_quantity   REAL,                      -- optional reorder level
+  notes          TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_inv_div ON inventory_item(gn_division_id, deleted_at);
+
+CREATE TABLE IF NOT EXISTS inventory_txn (
+  id             TEXT PRIMARY KEY,
+  item_id        TEXT NOT NULL REFERENCES inventory_item(id),
+  txn_type       TEXT NOT NULL,             -- in | out | adjust
+  quantity       REAL NOT NULL,             -- positive magnitude entered
+  balance_after  REAL,                      -- running balance snapshot
+  reference      TEXT,                      -- GRN / issue note / ref
+  note           TEXT,
+  user_id        TEXT,
+  txn_date       TEXT,                      -- date of movement (user-set)
+  created_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_invtxn_item ON inventory_txn(item_id, created_at);
