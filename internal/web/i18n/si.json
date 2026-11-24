@@ -158,5 +158,12 @@
   "detail": "විස්තර",
   "file": "ගොනුව",
   "size": "ප්‍රමාණය",
-  "date": "දිනය"
+  "date": "දිනය",
+  "photo": "ඡායාරූපය",
+  "no_photo": "ඡායාරූපයක් නැත",
+  "choose_photo": "ඡායාරූපයක් තෝරන්න",
+  "remove_photo": "ඉවත් කරන්න",
+  "photo_hint": "JPEG, PNG හෝ WebP, උපරිම 5 MB.",
+  "photo_too_large": "ඡායාරූපය විශාල වැඩියි (උපරිම 5 MB)",
+  "photo_upload_failed": "ඡායාරූපය උඩුගත කිරීම අසාර්ථකයි"
 }

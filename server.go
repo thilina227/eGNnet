@@ -17,6 +17,7 @@ var webFS embed.FS
 type Server struct {
 	db       *DB
 	log      *appLogger
+	dataDir  string // per-user writable app-data folder (photos, logs, db)
 	sessions sync.Map // token -> session
 }
 
@@ -27,7 +28,9 @@ type session struct {
 	expires  time.Time
 }
 
-func newServer(db *DB, lg *appLogger) *Server { return &Server{db: db, log: lg} }
+func newServer(db *DB, lg *appLogger, dataDir string) *Server {
+	return &Server{db: db, log: lg, dataDir: dataDir}
+}
 
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
@@ -56,6 +59,9 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/households/{id}/members", s.auth(s.handleMemberCreate))
 	mux.Handle("PUT /api/members/{id}", s.auth(s.handleMemberUpdate))
 	mux.Handle("DELETE /api/members/{id}", s.auth(s.handleMemberDelete))
+	mux.Handle("GET /api/members/{id}/photo", s.auth(s.handleMemberPhotoGet))
+	mux.Handle("POST /api/members/{id}/photo", s.auth(s.handleMemberPhotoUpload))
+	mux.Handle("DELETE /api/members/{id}/photo", s.auth(s.handleMemberPhotoDelete))
 	mux.Handle("GET /api/households/{id}/welfare", s.auth(s.handleWelfareList))
 	mux.Handle("POST /api/households/{id}/welfare", s.auth(s.handleWelfareCreate))
 	mux.Handle("DELETE /api/welfare/{id}", s.auth(s.handleWelfareDelete))

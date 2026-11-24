@@ -340,9 +340,10 @@ function renderMembers(householdId, members) {
   if (!householdId) { card.innerHTML = `<p class="muted">${esc(t("members_in_household"))} — ${esc(t("save"))} ${esc(t("household_info")).toLowerCase()} first.</p>`; return; }
   card.innerHTML = `
     <div class="section-sub"><h3>${esc(t("members_in_household"))}</h3><button class="btn sec sm" id="addMember">+ ${esc(t("add_member"))}</button></div>
-    <table><thead><tr><th>${esc(t("full_name"))}</th><th>${esc(t("relationship"))}</th><th>${esc(t("nic"))}</th>
+    <table><thead><tr><th></th><th>${esc(t("full_name"))}</th><th>${esc(t("relationship"))}</th><th>${esc(t("nic"))}</th>
       <th>${esc(t("gender"))}</th><th>${esc(t("education_level"))}</th><th></th></tr></thead>
     <tbody>${members.length ? members.map(m => `<tr>
+        <td>${m.photo_path ? `<img class="avatar" src="/api/members/${esc(m.id)}/photo?v=${esc(m.updated_at)}" alt="">` : `<span class="avatar avatar-ph">${esc((m.full_name_en || m.full_name_si || "?").trim().charAt(0).toUpperCase())}</span>`}</td>
         <td>${esc(m.full_name_en || m.full_name_si) || "—"}</td>
         <td>${esc(lookupName("relationship", m.relationship_to_head)) || "—"}</td>
         <td>${esc(m.nic) || "—"}</td>
@@ -350,7 +351,7 @@ function renderMembers(householdId, members) {
         <td>${esc(lookupName("education_level", m.education_level)) || "—"}</td>
         <td style="text-align:right"><button class="btn sec sm" data-edit="${esc(m.id)}">${esc(t("edit"))}</button>
           <button class="btn danger sm" data-del="${esc(m.id)}">${esc(t("delete"))}</button></td></tr>`).join("")
-      : `<tr><td colspan="6" class="empty">—</td></tr>`}</tbody></table>`;
+      : `<tr><td colspan="7" class="empty">—</td></tr>`}</tbody></table>`;
   card.querySelector("#addMember").onclick = () => memberModal(householdId, null);
   card.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => memberModal(householdId, members.find(m => m.id === b.dataset.edit)));
   card.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
@@ -367,6 +368,16 @@ function memberModal(householdId, m) {
   bg.className = "modal-bg";
   bg.innerHTML = `<div class="modal">
     <h2>${esc(m.id ? t("edit") : t("add_member"))}</h2>
+    <div class="photo-edit">
+      <div class="photo-frame" id="m_photo_frame">
+        ${m.photo_path ? `<img src="/api/members/${esc(m.id)}/photo?v=${esc(m.updated_at)}" alt="">` : `<span class="photo-ph">${esc(t("no_photo"))}</span>`}
+      </div>
+      <div class="photo-actions">
+        <label class="btn sec sm">${esc(t("choose_photo"))}<input type="file" id="m_photo_input" accept="image/jpeg,image/png,image/webp" hidden></label>
+        <button type="button" class="btn danger sm" id="m_photo_remove" ${m.photo_path ? "" : "style=display:none"}>${esc(t("remove_photo"))}</button>
+        <div class="muted">${esc(t("photo_hint"))}</div>
+      </div>
+    </div>
     <div class="grid g2">
       <div class="field"><label>${esc(t("full_name"))} (EN)</label><input id="m_en" value="${esc(m.full_name_en)}"></div>
       <div class="field"><label>${esc(t("full_name"))} (සිං)</label><input id="m_si" value="${esc(m.full_name_si)}"></div>
@@ -386,6 +397,26 @@ function memberModal(householdId, m) {
   document.body.appendChild(bg);
   bg.querySelector("#m_cancel").onclick = () => bg.remove();
   bg.onclick = e => { if (e.target === bg) bg.remove(); };
+
+  // photo handling
+  let photoFile = null, photoRemoved = false;
+  const frame = bg.querySelector("#m_photo_frame");
+  const removeBtn = bg.querySelector("#m_photo_remove");
+  bg.querySelector("#m_photo_input").onchange = e => {
+    const f = e.target.files[0];
+    if (!f) return;
+    if (f.size > 5 * 1024 * 1024) { toast(t("photo_too_large")); e.target.value = ""; return; }
+    photoFile = f; photoRemoved = false;
+    frame.innerHTML = `<img src="${URL.createObjectURL(f)}" alt="">`;
+    removeBtn.style.display = "";
+  };
+  removeBtn.onclick = () => {
+    photoFile = null; photoRemoved = true;
+    frame.innerHTML = `<span class="photo-ph">${esc(t("no_photo"))}</span>`;
+    removeBtn.style.display = "none";
+    bg.querySelector("#m_photo_input").value = "";
+  };
+
   bg.querySelector("#m_save").onclick = async () => {
     const q = s => bg.querySelector(s).value.trim();
     const body = {
@@ -395,8 +426,16 @@ function memberModal(householdId, m) {
       flags: Array.from(bg.querySelectorAll(".flag-row input:checked")).map(c => c.value),
     };
     try {
-      if (m.id) await api("PUT", "/api/members/" + m.id, body);
-      else await api("POST", "/api/households/" + householdId + "/members", body);
+      let mid = m.id;
+      if (mid) await api("PUT", "/api/members/" + mid, body);
+      else { const r = await api("POST", "/api/households/" + householdId + "/members", body); mid = r.id; }
+      if (photoFile) {
+        const fd = new FormData(); fd.append("photo", photoFile);
+        const res = await fetch("/api/members/" + mid + "/photo", { method: "POST", body: fd });
+        if (!res.ok) { const d = await res.json().catch(() => ({})); throw new Error(d.error || t("photo_upload_failed")); }
+      } else if (photoRemoved && m.id) {
+        await api("DELETE", "/api/members/" + mid + "/photo");
+      }
       bg.remove(); reloadHousehold(householdId); toast(t("saved"));
     } catch (e) { toast(e.message); }
   };

@@ -158,5 +158,12 @@
   "detail": "Detail",
   "file": "File",
   "size": "Size",
-  "date": "Date"
+  "date": "Date",
+  "photo": "Photo",
+  "no_photo": "No photo",
+  "choose_photo": "Choose photo",
+  "remove_photo": "Remove",
+  "photo_hint": "JPEG, PNG or WebP, up to 5 MB.",
+  "photo_too_large": "Image too large (max 5 MB)",
+  "photo_upload_failed": "Photo upload failed"
 }
