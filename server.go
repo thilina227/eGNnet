@@ -86,7 +86,7 @@ func logRequests(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { next.ServeHTTP(w, r) })
 }
 
-const cookieName = "egn_session"
+const cookieName = "egnnet_session"
 
 func (s *Server) auth(h http.HandlerFunc) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

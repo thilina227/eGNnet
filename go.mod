@@ -1,4 +1,4 @@
-module egn
+module egnnet
 
 go 1.26.0
 

@@ -1,4 +1,4 @@
-# eGN — Grama Niladhari household records
+# eGNnet — Grama Niladhari household records
 
 A trilingual (English / Sinhala / Tamil-ready) household records system for Sri Lankan
 Grama Niladhari divisions. Single self-contained executable with an embedded web server and
@@ -8,17 +8,17 @@ This is **v0.1**, a working vertical slice. See _Status_ below for what's implem
 
 ## Run it
 
-**Windows (as shipped to officers):** double-click `eGN.exe`. It starts a local server and
+**Windows (as shipped to officers):** double-click `eGNnet.exe`. It starts a local server and
 opens the app in your default browser. All data is stored in one file under
-`%LOCALAPPDATA%\eGN\eGN.db`.
+`%LOCALAPPDATA%\eGNnet\eGNnet.db`.
 
 **From source (any platform):**
 
 ```bash
-go build -o egn .     # produces a single binary
-./egn                 # starts http://127.0.0.1:8777 and opens a browser
-./egn --no-open       # don't open a browser
-./egn --addr 127.0.0.1:9000 --db /path/to/eGN.db
+go build -o egnnet .     # produces a single binary
+./egnnet                 # starts http://127.0.0.1:8777 and opens a browser
+./egnnet --no-open       # don't open a browser
+./egnnet --addr 127.0.0.1:9000 --db /path/to/eGNnet.db
 ```
 
 First launch shows a **setup wizard**: choose your Province → District → DS → GN division(s),
@@ -34,6 +34,7 @@ auth.go              first-run setup, login/logout, sessions (bcrypt)
 handlers.go          hierarchy, lookups, stats, household list/search/CRUD
 members_welfare.go   members, member flags, welfare enrolments, i18n endpoint
 db.go                SQLite open/migrate/seed, UUIDs, audit log
+buildinfo.go         build-time env/version/commit; GET /api/version
 internal/db/schema.sql   full schema (~34 tables)
 internal/db/seed.sql     admin hierarchy + 200+ lookup options (EN+Sinhala) + welfare programs
 internal/web/            embedded UI: index.html, app.js, styles.css, i18n/{en,si,ta}.json
@@ -63,14 +64,22 @@ place.
 
 - **Native window:** wrap with [Wails](https://wails.io) so it opens as a desktop window using the
   built-in WebView2 instead of a browser tab.
-- **Installer:** an [Inno Setup](https://jrsoftware.org/isinfo.php) script bundles `eGN.exe`, a
-  pre-seeded `eGN.db` and shortcuts into one wizard installer.
+- **Installer:** an [Inno Setup](https://jrsoftware.org/isinfo.php) script bundles `eGNnet.exe`, a
+  pre-seeded `eGNnet.db` and shortcuts into one wizard installer.
 - **Encryption (optional):** SQLCipher for the database file, or rely on Windows BitLocker.
 
-## Cross-compile a Windows binary
+## Cross-compile
+
+Thanks to the pure-Go SQLite driver there is no CGO, so every target builds from any host:
 
 ```bash
-GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o eGN.exe .
+# Windows
+GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o eGNnet.exe .
+
+# Linux (Ubuntu / amd64)
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o egnnet .
 ```
 
-(No CGO needed thanks to the pure-Go SQLite driver.)
+On Ubuntu you can also just run `go build -o egnnet .` natively. The CI pipeline
+(`.github/workflows/build.yml`) builds both the Windows and Linux binaries on every push
+and uploads them as artifacts.

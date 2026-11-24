@@ -1,6 +1,6 @@
 {
-  "app_title": "eGN — ග්‍රාම නිලධාරී දත්ත",
-  "app_short": "eGN",
+  "app_title": "eGNnet — ග්‍රාම නිලධාරී දත්ත",
+  "app_short": "eGNnet",
   "loading": "පූරණය වෙමින්…",
   "dashboard": "පුවරුව",
   "households": "ගෘහ ඒකක",
@@ -14,7 +14,7 @@
   "new_household": "නව ගෘහ ඒකකය",
   "no_results": "තවම ගෘහ ඒකක නැත. ආරම්භ කිරීමට එකක් එක් කරන්න.",
   "login": "ඇතුල් වන්න",
-  "login_title": "eGN වෙත ඇතුල් වන්න",
+  "login_title": "eGNnet වෙත ඇතුල් වන්න",
   "username": "පරිශීලක නාමය",
   "password": "මුරපදය",
   "logout": "ඉවත් වන්න",
