@@ -44,6 +44,7 @@ func main() {
 	}
 
 	url := "http://" + *addr + "/"
+	log.Printf("eGN %s (env=%s, commit=%s)", version, appEnv, commit)
 	log.Printf("eGN running at %s  (database: %s)", url, *dbPath)
 	if !*noOpen {
 		go func() { time.Sleep(600 * time.Millisecond); openBrowser(url) }()

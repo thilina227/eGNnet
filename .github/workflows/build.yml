@@ -1,0 +1,69 @@
+name: build
+
+# Builds the eGN Windows binary on every push to dev and main.
+#
+#   dev  branch -> build tagged with env "dev"  (development update channel)
+#   main branch -> build tagged with env "prod" (production update channel)
+#
+# The chosen environment is baked into the binary via -ldflags (see buildinfo.go),
+# so a running copy reports its own channel at GET /api/version. This is the
+# foundation for the future automated-update mechanism: each machine only pulls
+# updates from the channel matching the build it runs.
+
+on:
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Determine build environment
+        id: env
+        run: |
+          if [ "${GITHUB_REF_NAME}" = "main" ]; then
+            echo "app_env=prod" >> "$GITHUB_OUTPUT"
+          else
+            echo "app_env=dev" >> "$GITHUB_OUTPUT"
+          fi
+          echo "commit=$(git rev-parse --short HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Build Windows binary
+        env:
+          APP_ENV: ${{ steps.env.outputs.app_env }}
+          COMMIT: ${{ steps.env.outputs.commit }}
+          GOOS: windows
+          GOARCH: amd64
+          CGO_ENABLED: '0'
+        run: |
+          VERSION="0.1.0-${APP_ENV}+${COMMIT}"
+          echo "Building eGN.exe  env=${APP_ENV}  version=${VERSION}"
+          go build -trimpath \
+            -ldflags "-s -w -X main.appEnv=${APP_ENV} -X main.version=${VERSION} -X main.commit=${COMMIT}" \
+            -o dist/eGN.exe .
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: eGN-${{ steps.env.outputs.app_env }}-${{ steps.env.outputs.commit }}
+          path: dist/eGN.exe
+          if-no-files-found: error
+          retention-days: 30
