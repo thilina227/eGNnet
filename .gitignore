@@ -1,0 +1,12 @@
+# Binaries
+/egn
+/eGN
+*.exe
+*.test
+# Local database & app data
+*.db
+*.db-wal
+*.db-shm
+# Build / tooling caches
+/dist/
+/build/
