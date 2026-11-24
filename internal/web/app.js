@@ -171,7 +171,7 @@ function renderLogin() {
 
 // ---------- app shell ----------
 function renderApp() {
-  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["settings", t("settings")]];
+  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["inventory", t("inventory")], ["settings", t("settings")]];
   root.innerHTML = `
   <header class="app-header"><div class="row">
     <div class="brand">${esc(t("app_short"))}<small>${esc(state.me.officer_name || t("app_title"))}</small></div>
@@ -207,6 +207,7 @@ function renderCurrent() {
   if (state.view.name === "dashboard") return renderDashboard();
   if (state.view.name === "households") return renderHouseholds();
   if (state.view.name === "household") return renderHousehold(state.view.id);
+  if (state.view.name === "inventory") return renderInventory();
   if (state.view.name === "settings") return renderSettings();
 }
 
@@ -689,6 +690,168 @@ async function loadLogTable(view) {
         <td>${esc(r.action)}</td>
         <td>${esc(r.detail || "")}</td></tr>`).join("")
       : `<tr><td colspan="6" class="empty">—</td></tr>`}</tbody></table>`;
+}
+
+// ---------- office inventory ----------
+const invFilter = { division: "", q: "" };
+
+async function renderInventory() {
+  const view = document.getElementById("view");
+  const divSel = state.myDivisions.length > 1
+    ? `<div class="field"><label>${esc(t("gn_division"))}</label><select id="inv_div">
+        <option value="">${esc(t("all_divisions"))}</option>
+        ${state.myDivisions.map(d => `<option value="${esc(d.id)}" ${invFilter.division === d.id ? "selected" : ""}>${esc((d.gn_code ? d.gn_code + " · " : "") + (d["name_" + state.lang] || d.name_en))}</option>`).join("")}</select></div>`
+    : "";
+  view.innerHTML = `
+    <div class="card">
+      <div class="section-sub"><h2>${esc(t("inventory"))}</h2><button class="btn sec sm" id="inv_add">+ ${esc(t("add_item"))}</button></div>
+      <div class="toolbar">
+        ${divSel}
+        <div class="field grow"><label>${esc(t("search"))}</label><input id="inv_q" value="${esc(invFilter.q)}" placeholder="${esc(t("item_name"))}…"></div>
+      </div>
+      <div id="invTable"></div>
+    </div>`;
+  const sel = view.querySelector("#inv_div");
+  if (sel) sel.onchange = e => { invFilter.division = e.target.value; loadInventory(view); };
+  let deb;
+  view.querySelector("#inv_q").oninput = e => { invFilter.q = e.target.value; clearTimeout(deb); deb = setTimeout(() => loadInventory(view), 250); };
+  view.querySelector("#inv_add").onclick = () => itemModal(null);
+  loadInventory(view);
+}
+
+async function loadInventory(view) {
+  const el = view.querySelector("#invTable");
+  if (!el) return;
+  const qs = new URLSearchParams();
+  if (invFilter.division) qs.set("division", invFilter.division);
+  if (invFilter.q) qs.set("q", invFilter.q);
+  const items = await api("GET", "/api/inventory?" + qs.toString()).catch(() => []);
+  const multi = state.myDivisions.length > 1;
+  el.innerHTML = `<table><thead><tr>
+      <th>${esc(t("item_name"))}</th><th>${esc(t("category"))}</th><th>${esc(t("unit"))}</th>
+      <th>${esc(t("quantity"))}</th>${multi ? `<th>${esc(t("gn_division"))}</th>` : ""}<th></th></tr></thead>
+    <tbody>${items.length ? items.map(it => {
+      const low = it.min_quantity != null && Number(it.quantity) <= Number(it.min_quantity);
+      return `<tr>
+        <td>${esc(it.name)}</td>
+        <td>${esc(it.category) || "—"}</td>
+        <td>${esc(it.unit) || "—"}</td>
+        <td><strong>${esc(fmtNum(it.quantity))}</strong>${low ? ` <span class="badge badge-warn">${esc(t("low_stock"))}</span>` : ""}</td>
+        ${multi ? `<td>${esc((it.gn_code ? it.gn_code + " · " : "") + it.division_name)}</td>` : ""}
+        <td style="text-align:right">
+          <button class="btn sec sm" data-mov="${esc(it.id)}">${esc(t("movements"))}</button>
+          <button class="btn sec sm" data-edit="${esc(it.id)}">${esc(t("edit"))}</button>
+          <button class="btn danger sm" data-del="${esc(it.id)}">${esc(t("delete"))}</button></td></tr>`;
+    }).join("")
+      : `<tr><td colspan="${multi ? 6 : 5}" class="empty">${esc(t("no_items"))}</td></tr>`}</tbody></table>`;
+  el.querySelectorAll("[data-mov]").forEach(b => b.onclick = () => movementsModal(items.find(i => i.id === b.dataset.mov)));
+  el.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => itemModal(items.find(i => i.id === b.dataset.edit)));
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirm_delete"))) return;
+    await api("DELETE", "/api/inventory/" + b.dataset.del);
+    loadInventory(view);
+  });
+}
+
+function fmtNum(n) { n = Number(n) || 0; return Number.isInteger(n) ? String(n) : n.toFixed(2).replace(/\.?0+$/, ""); }
+
+function itemModal(it) {
+  it = it || {};
+  const isNew = !it.id;
+  const divOpts = state.myDivisions.map(d => `<option value="${esc(d.id)}" ${d.id === it.gn_division_id ? "selected" : ""}>${esc((d.gn_code ? d.gn_code + " · " : "") + (d["name_" + state.lang] || d.name_en))}</option>`).join("");
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal">
+    <h2>${esc(isNew ? t("add_item") : t("edit"))}</h2>
+    <div class="grid g2">
+      ${isNew ? `<div class="field"><label>${esc(t("gn_division"))} *</label><select id="i_div">${divOpts}</select></div>` : ""}
+      <div class="field"><label>${esc(t("item_name"))} *</label><input id="i_name" value="${esc(it.name)}"></div>
+      <div class="field"><label>${esc(t("category"))}</label><input id="i_cat" value="${esc(it.category)}"></div>
+      <div class="field"><label>${esc(t("unit"))}</label><input id="i_unit" value="${esc(it.unit)}" placeholder="${esc(t("unit_hint"))}"></div>
+      <div class="field"><label>${esc(t("reorder_level"))}</label><input id="i_min" type="number" step="any" value="${esc(it.min_quantity)}"></div>
+      ${isNew ? `<div class="field"><label>${esc(t("opening_quantity"))}</label><input id="i_open" type="number" step="any" value=""></div>` : ""}
+      <div class="field" style="grid-column:1/-1"><label>${esc(t("notes"))}</label><input id="i_notes" value="${esc(it.notes)}"></div>
+    </div>
+    <div class="row-actions"><button class="btn sec" id="i_cancel">${esc(t("cancel"))}</button><button class="btn" id="i_save">${esc(t("save"))}</button></div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector("#i_cancel").onclick = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  bg.querySelector("#i_save").onclick = async () => {
+    const q = s => { const e = bg.querySelector(s); return e ? e.value.trim() : ""; };
+    const minV = q("#i_min");
+    try {
+      if (isNew) {
+        const body = {
+          gn_division_id: bg.querySelector("#i_div").value, name: q("#i_name"),
+          category: q("#i_cat"), unit: q("#i_unit"), notes: q("#i_notes"),
+          min_quantity: minV === "" ? null : Number(minV),
+          opening_quantity: q("#i_open") === "" ? 0 : Number(q("#i_open")),
+        };
+        if (!body.name) return toast(t("item_name"));
+        await api("POST", "/api/inventory", body);
+      } else {
+        await api("PUT", "/api/inventory/" + it.id, {
+          name: q("#i_name"), category: q("#i_cat"), unit: q("#i_unit"), notes: q("#i_notes"),
+          min_quantity: minV === "" ? null : Number(minV),
+        });
+      }
+      bg.remove(); loadInventory(document.getElementById("view")); toast(t("saved"));
+    } catch (e) { toast(e.message); }
+  };
+}
+
+async function movementsModal(it) {
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal wide">
+    <h2>${esc(t("movements"))} — ${esc(it.name)}</h2>
+    <p class="muted">${esc(t("current_balance"))}: <strong id="mv_bal">${esc(fmtNum(it.quantity))}</strong> ${esc(it.unit || "")}</p>
+    <div class="toolbar">
+      <div class="field"><label>${esc(t("movement_type"))}</label><select id="mv_type">
+        <option value="in">${esc(t("stock_in"))}</option>
+        <option value="out">${esc(t("stock_out"))}</option>
+        <option value="adjust">${esc(t("adjust"))}</option></select></div>
+      <div class="field"><label>${esc(t("quantity"))}</label><input id="mv_qty" type="number" step="any"></div>
+      <div class="field"><label>${esc(t("date"))}</label><input id="mv_date" type="date"></div>
+      <div class="field grow"><label>${esc(t("reference"))}</label><input id="mv_ref"></div>
+      <button class="btn" id="mv_add">${esc(t("record_movement"))}</button>
+    </div>
+    <div id="mv_list"></div>
+    <div class="row-actions"><button class="btn sec" id="mv_close">${esc(t("back"))}</button></div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector("#mv_close").onclick = () => { bg.remove(); loadInventory(document.getElementById("view")); };
+  bg.onclick = e => { if (e.target === bg) { bg.remove(); loadInventory(document.getElementById("view")); } };
+
+  const loadTxns = async () => {
+    const txns = await api("GET", "/api/inventory/" + it.id + "/txns").catch(() => []);
+    const typeLabel = { in: t("stock_in"), out: t("stock_out"), adjust: t("adjust") };
+    bg.querySelector("#mv_list").innerHTML = `<table><thead><tr>
+        <th>${esc(t("date"))}</th><th>${esc(t("movement_type"))}</th><th>${esc(t("quantity"))}</th>
+        <th>${esc(t("balance"))}</th><th>${esc(t("reference"))}</th><th>${esc(t("notes"))}</th></tr></thead>
+      <tbody>${txns.length ? txns.map(x => `<tr>
+          <td>${esc(x.txn_date || (x.created_at || "").slice(0, 10))}</td>
+          <td>${esc(typeLabel[x.txn_type] || x.txn_type)}</td>
+          <td>${x.txn_type === "out" ? "−" : (x.txn_type === "in" ? "+" : "=")}${esc(fmtNum(x.quantity))}</td>
+          <td>${esc(fmtNum(x.balance_after))}</td>
+          <td>${esc(x.reference) || "—"}</td>
+          <td>${esc(x.note) || "—"}</td></tr>`).join("")
+        : `<tr><td colspan="6" class="empty">—</td></tr>`}</tbody></table>`;
+  };
+  bg.querySelector("#mv_add").onclick = async () => {
+    const qty = bg.querySelector("#mv_qty").value;
+    if (qty === "" || Number(qty) <= 0) return toast(t("quantity"));
+    try {
+      const r = await api("POST", "/api/inventory/" + it.id + "/txns", {
+        txn_type: bg.querySelector("#mv_type").value, quantity: Number(qty),
+        reference: bg.querySelector("#mv_ref").value.trim(), txn_date: bg.querySelector("#mv_date").value,
+      });
+      it.quantity = r.balance_after;
+      bg.querySelector("#mv_bal").textContent = fmtNum(r.balance_after);
+      bg.querySelector("#mv_qty").value = ""; bg.querySelector("#mv_ref").value = "";
+      await loadTxns(); toast(t("saved"));
+    } catch (e) { toast(e.message); }
+  };
+  loadTxns();
 }
 
 boot();
