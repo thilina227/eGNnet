@@ -1,0 +1,86 @@
+name: release
+
+# Publishes a GitHub Release whenever main is updated (i.e. when dev -> main is
+# merged). Builds the production binaries (env=prod) for Windows and Linux,
+# generates checksums, and attaches them to a tagged release.
+#
+# Versioning: the base version is read from the VERSION file; the release tag is
+# v<base>-build.<run_number> so every merge to main produces a unique release
+# without a manual tag step. Bump VERSION to roll the base (e.g. 0.1.0 -> 0.2.0).
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.24'
+          cache: true
+
+      - name: Vet
+        run: go vet ./...
+
+      - name: Compute version
+        id: ver
+        run: |
+          BASE="$(tr -d '[:space:]' < VERSION 2>/dev/null || echo 0.1.0)"
+          COMMIT="$(git rev-parse --short HEAD)"
+          TAG="v${BASE}-build.${{ github.run_number }}"
+          VERSION="${BASE}+build.${{ github.run_number }}.${COMMIT}"
+          echo "tag=$TAG"         >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "commit=$COMMIT"   >> "$GITHUB_OUTPUT"
+          echo "Release $TAG (version $VERSION)"
+
+      - name: Build production binaries
+        env:
+          APP_ENV: prod
+          VERSION: ${{ steps.ver.outputs.version }}
+          COMMIT: ${{ steps.ver.outputs.commit }}
+          CGO_ENABLED: '0'
+        run: |
+          mkdir -p dist
+          build() {
+            goos="$1"; goarch="$2"; out="$3"
+            echo "Building $out ($goos/$goarch)"
+            GOOS="$goos" GOARCH="$goarch" go build -trimpath \
+              -ldflags "-s -w -X main.appEnv=${APP_ENV} -X main.version=${VERSION} -X main.commit=${COMMIT}" \
+              -o "dist/$out" .
+          }
+          build windows amd64 eGNnet.exe
+          build linux   amd64 egnnet-linux-amd64
+          ( cd dist && sha256sum ./* > SHA256SUMS.txt )
+          ls -l dist
+
+      - name: Write release notes
+        run: |
+          {
+            printf '%s\n\n' "Automated production release built from \`main\` @ \`${{ steps.ver.outputs.commit }}\` (env=prod)."
+            printf '%s\n' "**Downloads**"
+            printf '%s\n' "- \`eGNnet.exe\` — Windows (amd64)"
+            printf '%s\n' "- \`egnnet-linux-amd64\` — Linux / Ubuntu (amd64)"
+            printf '%s\n\n' "- \`SHA256SUMS.txt\` — checksums"
+            printf '%s\n' "Each binary self-reports its build at \`GET /api/version\`."
+          } > dist/RELEASE_NOTES.md
+
+      - name: Publish GitHub Release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${{ steps.ver.outputs.tag }}" \
+            dist/eGNnet.exe dist/egnnet-linux-amd64 dist/SHA256SUMS.txt \
+            --target "${{ github.sha }}" \
+            --title "eGNnet ${{ steps.ver.outputs.tag }}" \
+            --notes-file dist/RELEASE_NOTES.md

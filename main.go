@@ -23,7 +23,7 @@ func main() {
 	if *dbPath == "" {
 		dir := appDataDir()
 		_ = os.MkdirAll(dir, 0o755)
-		*dbPath = filepath.Join(dir, "eGN.db")
+		*dbPath = filepath.Join(dir, "eGNnet.db")
 	}
 
 	db, err := openDB(*dbPath)
@@ -44,8 +44,8 @@ func main() {
 	}
 
 	url := "http://" + *addr + "/"
-	log.Printf("eGN %s (env=%s, commit=%s)", version, appEnv, commit)
-	log.Printf("eGN running at %s  (database: %s)", url, *dbPath)
+	log.Printf("eGNnet %s (env=%s, commit=%s)", version, appEnv, commit)
+	log.Printf("eGNnet running at %s  (database: %s)", url, *dbPath)
 	if !*noOpen {
 		go func() { time.Sleep(600 * time.Millisecond); openBrowser(url) }()
 	}
@@ -59,15 +59,15 @@ func appDataDir() string {
 	switch runtime.GOOS {
 	case "windows":
 		if d := os.Getenv("LOCALAPPDATA"); d != "" {
-			return filepath.Join(d, "eGN")
+			return filepath.Join(d, "eGNnet")
 		}
 	case "darwin":
 		if h, err := os.UserHomeDir(); err == nil {
-			return filepath.Join(h, "Library", "Application Support", "eGN")
+			return filepath.Join(h, "Library", "Application Support", "eGNnet")
 		}
 	}
 	if h, err := os.UserHomeDir(); err == nil {
-		return filepath.Join(h, ".egn")
+		return filepath.Join(h, ".egnnet")
 	}
 	return "."
 }

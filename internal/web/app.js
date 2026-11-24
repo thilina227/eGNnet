@@ -1,5 +1,5 @@
 "use strict";
-// eGN single-page app (vanilla JS, no build step).
+// eGNnet single-page app (vanilla JS, no build step).
 
 const state = {
   lang: "en",

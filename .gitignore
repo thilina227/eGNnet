@@ -1,6 +1,6 @@
 # Binaries
-/egn
-/eGN
+/egnnet
+/eGNnet
 *.exe
 *.test
 # Local database & app data

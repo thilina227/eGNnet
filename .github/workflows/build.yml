@@ -1,18 +1,20 @@
 name: build
 
-# Builds the eGN Windows binary on every push to dev and main.
+# CI build. Runs on pushes to dev and on pull requests to dev/main, producing
+# dev-tagged binaries as downloadable artifacts (a sanity check that the code
+# compiles for both targets). Pushes to main are handled by release.yml, which
+# builds the prod binaries and publishes a GitHub Release.
 #
-#   dev  branch -> build tagged with env "dev"  (development update channel)
-#   main branch -> build tagged with env "prod" (production update channel)
+# Targets (pure Go, no CGO, so all cross-compile from the same ubuntu runner):
+#   - windows/amd64 -> eGNnet.exe
+#   - linux/amd64   -> egnnet   (Ubuntu / other Linux)
 #
-# The chosen environment is baked into the binary via -ldflags (see buildinfo.go),
-# so a running copy reports its own channel at GET /api/version. This is the
-# foundation for the future automated-update mechanism: each machine only pulls
-# updates from the channel matching the build it runs.
+# The chosen environment is baked into each binary via -ldflags (see buildinfo.go),
+# so a running copy reports its own channel at GET /api/version.
 
 on:
   push:
-    branches: [main, dev]
+    branches: [dev]
   pull_request:
     branches: [main, dev]
   workflow_dispatch:
@@ -23,6 +25,16 @@ permissions:
 jobs:
   build:
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - goos: windows
+            goarch: amd64
+            output: eGNnet.exe
+          - goos: linux
+            goarch: amd64
+            output: egnnet
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -46,24 +58,24 @@ jobs:
       - name: Vet
         run: go vet ./...
 
-      - name: Build Windows binary
+      - name: Build ${{ matrix.goos }}/${{ matrix.goarch }}
         env:
           APP_ENV: ${{ steps.env.outputs.app_env }}
           COMMIT: ${{ steps.env.outputs.commit }}
-          GOOS: windows
-          GOARCH: amd64
+          GOOS: ${{ matrix.goos }}
+          GOARCH: ${{ matrix.goarch }}
           CGO_ENABLED: '0'
         run: |
           VERSION="0.1.0-${APP_ENV}+${COMMIT}"
-          echo "Building eGN.exe  env=${APP_ENV}  version=${VERSION}"
+          echo "Building ${{ matrix.output }}  os=${GOOS}/${GOARCH}  env=${APP_ENV}  version=${VERSION}"
           go build -trimpath \
             -ldflags "-s -w -X main.appEnv=${APP_ENV} -X main.version=${VERSION} -X main.commit=${COMMIT}" \
-            -o dist/eGN.exe .
+            -o dist/${{ matrix.output }} .
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: eGN-${{ steps.env.outputs.app_env }}-${{ steps.env.outputs.commit }}
-          path: dist/eGN.exe
+          name: eGNnet-${{ matrix.goos }}-${{ steps.env.outputs.app_env }}-${{ steps.env.outputs.commit }}
+          path: dist/${{ matrix.output }}
           if-no-files-found: error
           retention-days: 30

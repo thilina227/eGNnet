@@ -1,6 +1,6 @@
 {
-  "app_title": "eGN — Grama Niladhari Records",
-  "app_short": "eGN",
+  "app_title": "eGNnet — Grama Niladhari Records",
+  "app_short": "eGNnet",
   "loading": "Loading…",
   "dashboard": "Dashboard",
   "households": "Households",
@@ -14,7 +14,7 @@
   "new_household": "New household",
   "no_results": "No households yet. Add one to get started.",
   "login": "Sign in",
-  "login_title": "Sign in to eGN",
+  "login_title": "Sign in to eGNnet",
   "username": "Username",
   "password": "Password",
   "logout": "Sign out",
