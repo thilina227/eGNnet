@@ -171,7 +171,7 @@ function renderLogin() {
 
 // ---------- app shell ----------
 function renderApp() {
-  const nav = [["dashboard", t("dashboard")], ["households", t("households")]];
+  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["settings", t("settings")]];
   root.innerHTML = `
   <header class="app-header"><div class="row">
     <div class="brand">${esc(t("app_short"))}<small>${esc(state.me.officer_name || t("app_title"))}</small></div>
@@ -207,6 +207,7 @@ function renderCurrent() {
   if (state.view.name === "dashboard") return renderDashboard();
   if (state.view.name === "households") return renderHouseholds();
   if (state.view.name === "household") return renderHousehold(state.view.id);
+  if (state.view.name === "settings") return renderSettings();
 }
 
 // ---------- dashboard ----------
@@ -561,6 +562,94 @@ function assetModal(householdId, coll, row) {
       bg.remove(); renderAssets(householdId); toast(t("saved"));
     } catch (e) { toast(e.message); }
   };
+}
+
+// ---------- settings: application log + retention ----------
+const LOG_CATEGORIES = ["", "auth", "admin", "error", "sync", "system"];
+const LOG_LEVELS = ["", "info", "warn", "error"];
+const logFilter = { level: "", category: "", q: "" };
+
+function fmtBytes(n) {
+  n = Number(n) || 0;
+  if (n < 1024) return n + " B";
+  if (n < 1024 * 1024) return (n / 1024).toFixed(1) + " KB";
+  return (n / (1024 * 1024)).toFixed(1) + " MB";
+}
+function fmtTime(s) { return (s || "").replace("T", " ").replace("Z", ""); }
+
+async function renderSettings() {
+  const view = document.getElementById("view");
+  const cfg = await api("GET", "/api/admin/log-config").catch(() => ({ retention_days: 180, app_log_count: 0, audit_log_count: 0, archives: [] }));
+  view.innerHTML = `
+    <div class="grid g3">
+      <div class="stat"><div class="n">${cfg.app_log_count}</div><div class="l">${esc(t("app_log_entries"))}</div></div>
+      <div class="stat"><div class="n">${cfg.audit_log_count}</div><div class="l">${esc(t("audit_log_entries"))}</div></div>
+      <div class="stat"><div class="n">${(cfg.archives || []).length}</div><div class="l">${esc(t("archived_files"))}</div></div>
+    </div>
+    <div class="card">
+      <h2>${esc(t("log_retention"))}</h2>
+      <p class="muted">${esc(t("log_retention_help"))}</p>
+      <div class="toolbar">
+        <div class="field"><label>${esc(t("retention_days"))}</label>
+          <input id="ret_days" type="number" min="1" max="3650" value="${esc(cfg.retention_days)}"></div>
+        <button class="btn" id="ret_save">${esc(t("save"))}</button>
+        <button class="btn sec" id="ret_sweep">${esc(t("run_cleanup"))}</button>
+        <a class="btn sec" href="/api/admin/logs/export">${esc(t("export_csv"))}</a>
+      </div>
+      ${(cfg.archives || []).length ? `<h3 style="margin-top:1rem">${esc(t("archived_files"))}</h3>
+        <table><thead><tr><th>${esc(t("file"))}</th><th>${esc(t("size"))}</th><th>${esc(t("date"))}</th></tr></thead>
+        <tbody>${cfg.archives.map(a => `<tr><td>${esc(a.name)}</td><td>${esc(fmtBytes(a.size_bytes))}</td><td>${esc(fmtTime(a.modified_at))}</td></tr>`).join("")}</tbody></table>` : ""}
+    </div>
+    <div class="card">
+      <h2>${esc(t("application_log"))}</h2>
+      <p class="muted">${esc(t("application_log_help"))}</p>
+      <div class="toolbar">
+        <div class="field"><label>${esc(t("log_level"))}</label>
+          <select id="f_level">${LOG_LEVELS.map(l => `<option value="${l}" ${logFilter.level === l ? "selected" : ""}>${l ? esc(t("level_" + l)) : esc(t("all"))}</option>`).join("")}</select></div>
+        <div class="field"><label>${esc(t("category"))}</label>
+          <select id="f_cat">${LOG_CATEGORIES.map(c => `<option value="${c}" ${logFilter.category === c ? "selected" : ""}>${c ? esc(t("cat_" + c)) : esc(t("all"))}</option>`).join("")}</select></div>
+        <div class="field grow"><label>${esc(t("search"))}</label><input id="f_q" value="${esc(logFilter.q)}"></div>
+      </div>
+      <div id="logTable"></div>
+    </div>`;
+
+  view.querySelector("#ret_save").onclick = async () => {
+    const days = Number(view.querySelector("#ret_days").value);
+    try { await api("PUT", "/api/admin/log-config", { retention_days: days }); toast(t("saved")); renderSettings(); }
+    catch (e) { toast(e.message); }
+  };
+  view.querySelector("#ret_sweep").onclick = async () => {
+    if (!confirm(t("run_cleanup_confirm"))) return;
+    try { const r = await api("POST", "/api/admin/logs/sweep"); toast(t("saved")); renderSettings(); }
+    catch (e) { toast(e.message); }
+  };
+  const reload = () => loadLogTable(view);
+  view.querySelector("#f_level").onchange = e => { logFilter.level = e.target.value; reload(); };
+  view.querySelector("#f_cat").onchange = e => { logFilter.category = e.target.value; reload(); };
+  let deb;
+  view.querySelector("#f_q").oninput = e => { logFilter.q = e.target.value; clearTimeout(deb); deb = setTimeout(reload, 250); };
+  loadLogTable(view);
+}
+
+async function loadLogTable(view) {
+  const el = view.querySelector("#logTable");
+  if (!el) return;
+  const qs = new URLSearchParams();
+  if (logFilter.level) qs.set("level", logFilter.level);
+  if (logFilter.category) qs.set("category", logFilter.category);
+  if (logFilter.q) qs.set("q", logFilter.q);
+  const rows = await api("GET", "/api/admin/logs?" + qs.toString()).catch(() => []);
+  el.innerHTML = `<table><thead><tr>
+      <th>${esc(t("time"))}</th><th>${esc(t("log_level"))}</th><th>${esc(t("category"))}</th>
+      <th>${esc(t("user"))}</th><th>${esc(t("action"))}</th><th>${esc(t("detail"))}</th></tr></thead>
+    <tbody>${rows.length ? rows.map(r => `<tr>
+        <td>${esc(fmtTime(r.created_at))}</td>
+        <td><span class="badge badge-${esc(r.level)}">${esc(t("level_" + r.level) || r.level)}</span></td>
+        <td>${esc(t("cat_" + r.category) || r.category)}</td>
+        <td>${esc(r.username || "")}</td>
+        <td>${esc(r.action)}</td>
+        <td>${esc(r.detail || "")}</td></tr>`).join("")
+      : `<tr><td colspan="6" class="empty">—</td></tr>`}</tbody></table>`;
 }
 
 boot();

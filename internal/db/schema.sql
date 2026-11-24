@@ -448,6 +448,24 @@ CREATE TABLE IF NOT EXISTS app_config (
   setup_complete  INTEGER NOT NULL DEFAULT 0,
   default_language TEXT NOT NULL DEFAULT 'en',
   office_name     TEXT,
+  log_retention_days INTEGER NOT NULL DEFAULT 180,
   created_at      TEXT,
   updated_at      TEXT
 );
+
+-- Operational / application log, DISTINCT from audit_log.
+-- audit_log = per-row data-change trail (what citizen data changed).
+-- app_log   = operational events: logins, errors, admin actions, sync, system.
+-- Records actors + actions only; never citizen PII.
+CREATE TABLE IF NOT EXISTS app_log (
+  id          TEXT PRIMARY KEY,
+  level       TEXT NOT NULL DEFAULT 'info',   -- info | warn | error
+  category    TEXT NOT NULL DEFAULT 'system', -- auth | admin | sync | error | system
+  user_id     TEXT,
+  username    TEXT,
+  action      TEXT NOT NULL,
+  detail      TEXT,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_applog_time ON app_log(created_at);
+CREATE INDEX IF NOT EXISTS ix_applog_cat ON app_log(category, created_at);

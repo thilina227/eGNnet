@@ -89,3 +89,8 @@ tbody tr:hover{background:var(--surface-2)}
 .toast.show{opacity:1}
 .section-sub{display:flex;justify-content:space-between;align-items:center;margin:1.2rem 0 .4rem}
 .section-sub h3{margin:0}
+.badge{display:inline-block;padding:.1rem .5rem;border-radius:999px;font-size:.72rem;font-weight:700;text-transform:uppercase;letter-spacing:.02em}
+.badge-info{background:rgba(15,110,99,.12);color:var(--accent-d)}
+.badge-warn{background:rgba(176,122,0,.15);color:#8a5f00}
+.badge-error{background:rgba(162,59,52,.14);color:var(--danger)}
+a.btn{display:inline-flex;align-items:center;text-decoration:none}
