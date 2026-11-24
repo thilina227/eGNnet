@@ -38,6 +38,8 @@ func (db *DB) migrate() error {
 	if _, err := db.Exec(schemaSQL); err != nil {
 		return fmt.Errorf("schema: %w", err)
 	}
+	// add columns introduced after v0.1 (ignore "duplicate column" on re-run)
+	_, _ = db.Exec(`ALTER TABLE app_config ADD COLUMN log_retention_days INTEGER NOT NULL DEFAULT 180`)
 	// ensure the single config row exists
 	if _, err := db.Exec(`INSERT OR IGNORE INTO app_config(id,setup_complete,default_language,created_at,updated_at)
 		VALUES(1,0,'en',datetime('now'),datetime('now'))`); err != nil {

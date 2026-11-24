@@ -115,6 +115,9 @@ func (s *Server) handleSetup(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	s.db.audit(userID, "app_user", userID, "create", map[string]string{"setup": "complete"})
+	if s.log != nil {
+		s.log.write("info", "admin", userID, req.Username, "setup_complete", "office configured")
+	}
 	writeJSON(w, 200, map[string]any{"ok": true})
 }
 
@@ -133,6 +136,9 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	err := s.db.QueryRow(`SELECT id,password_hash,role,is_active FROM app_user WHERE username=? AND deleted_at IS NULL`,
 		req.Username).Scan(&id, &hash, &role, &active)
 	if err != nil || active == 0 || bcrypt.CompareHashAndPassword([]byte(hash), []byte(req.Password)) != nil {
+		if s.log != nil {
+			s.log.write("warn", "auth", "", req.Username, "login_failed", "invalid credentials")
+		}
 		writeJSON(w, 401, map[string]string{"error": "invalid username or password"})
 		return
 	}
@@ -140,11 +146,17 @@ func (s *Server) handleLogin(w http.ResponseWriter, r *http.Request) {
 	s.sessions.Store(token, &session{userID: id, username: req.Username, role: role, expires: time.Now().Add(12 * time.Hour)})
 	s.db.Exec(`UPDATE app_user SET last_login=? WHERE id=?`, nowISO(), id)
 	http.SetCookie(w, &http.Cookie{Name: cookieName, Value: token, Path: "/", HttpOnly: true, SameSite: http.SameSiteLaxMode, MaxAge: 43200})
+	if s.log != nil {
+		s.log.write("info", "auth", id, req.Username, "login", "signed in")
+	}
 	writeJSON(w, 200, map[string]any{"ok": true, "role": role})
 }
 
 // POST /api/logout
 func (s *Server) handleLogout(w http.ResponseWriter, r *http.Request) {
+	if sess := s.currentSession(r); sess != nil && s.log != nil {
+		s.log.write("info", "auth", sess.userID, sess.username, "logout", "signed out")
+	}
 	if c, err := r.Cookie(cookieName); err == nil {
 		s.sessions.Delete(c.Value)
 	}

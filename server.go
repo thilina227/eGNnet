@@ -16,6 +16,7 @@ var webFS embed.FS
 // Server holds dependencies and in-memory sessions.
 type Server struct {
 	db       *DB
+	log      *appLogger
 	sessions sync.Map // token -> session
 }
 
@@ -26,7 +27,7 @@ type session struct {
 	expires  time.Time
 }
 
-func newServer(db *DB) *Server { return &Server{db: db} }
+func newServer(db *DB, lg *appLogger) *Server { return &Server{db: db, log: lg} }
 
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
@@ -68,6 +69,13 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("DELETE /api/assets/{collection}/{id}", s.auth(s.handleAssetDelete))
 	mux.Handle("PUT /api/households/{id}/finance", s.auth(s.handleFinanceUpsert))
 
+	// --- application log / retention (admin settings) ---
+	mux.Handle("GET /api/admin/logs", s.auth(s.handleLogList))
+	mux.Handle("GET /api/admin/log-config", s.auth(s.handleLogConfigGet))
+	mux.Handle("PUT /api/admin/log-config", s.auth(s.handleLogConfigSet))
+	mux.Handle("POST /api/admin/logs/sweep", s.auth(s.handleLogSweep))
+	mux.Handle("GET /api/admin/logs/export", s.auth(s.handleLogExport))
+
 	// --- static UI ---
 	sub, _ := fs.Sub(webFS, "internal/web")
 	fileServer := http.FileServer(http.FS(sub))
@@ -84,13 +92,38 @@ func (s *Server) routes() http.Handler {
 		_, _ = w.Write(b)
 	})
 
-	return logRequests(mux)
+	return s.logRequests(mux)
 }
 
 // ---- middleware & helpers ----
 
-func logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { next.ServeHTTP(w, r) })
+// statusRecorder captures the response status so we can log server errors.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (sr *statusRecorder) WriteHeader(code int) {
+	sr.status = code
+	sr.ResponseWriter.WriteHeader(code)
+}
+
+// logRequests records 5xx responses to the operational log as errors.
+// Only the method, path (which carries UUIDs, not citizen PII) and status
+// are logged — never request bodies.
+func (s *Server) logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sr, r)
+		if sr.status >= 500 && s.log != nil {
+			username := ""
+			if sess := s.currentSession(r); sess != nil {
+				username = sess.username
+			}
+			s.log.write("error", "error", "", username, "request_failed",
+				r.Method+" "+r.URL.Path+" → "+http.StatusText(sr.status))
+		}
+	})
 }
 
 const cookieName = "egnnet_session"
