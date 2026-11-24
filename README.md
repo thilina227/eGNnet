@@ -68,10 +68,18 @@ place.
   pre-seeded `eGNnet.db` and shortcuts into one wizard installer.
 - **Encryption (optional):** SQLCipher for the database file, or rely on Windows BitLocker.
 
-## Cross-compile a Windows binary
+## Cross-compile
+
+Thanks to the pure-Go SQLite driver there is no CGO, so every target builds from any host:
 
 ```bash
+# Windows
 GOOS=windows GOARCH=amd64 CGO_ENABLED=0 go build -o eGNnet.exe .
+
+# Linux (Ubuntu / amd64)
+GOOS=linux GOARCH=amd64 CGO_ENABLED=0 go build -o egnnet .
 ```
 
-(No CGO needed thanks to the pure-Go SQLite driver.)
+On Ubuntu you can also just run `go build -o egnnet .` natively. The CI pipeline
+(`.github/workflows/build.yml`) builds both the Windows and Linux binaries on every push
+and uploads them as artifacts.
