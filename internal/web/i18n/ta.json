@@ -183,5 +183,15 @@
   "adjust": "Adjust",
   "record_movement": "Record",
   "balance": "Balance",
-  "current_balance": "Current balance"
+  "current_balance": "Current balance",
+  "diary": "Work diary",
+  "add_entry": "Add entry",
+  "entry": "Entry",
+  "title": "Title",
+  "author": "By",
+  "from_date": "From",
+  "to_date": "To",
+  "no_entries": "No diary entries yet. Add one to get started.",
+  "diary_cat_hint": "e.g. meeting, field visit, inquiry",
+  "diary_need_text": "Enter a title or a note"
 }
