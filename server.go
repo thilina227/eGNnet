@@ -83,6 +83,12 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("GET /api/inventory/{id}/txns", s.auth(s.handleInventoryTxns))
 	mux.Handle("POST /api/inventory/{id}/txns", s.auth(s.handleInventoryTxnCreate))
 
+	// --- work diary / day-book (division-scoped) ---
+	mux.Handle("GET /api/diary", s.auth(s.handleDiaryList))
+	mux.Handle("POST /api/diary", s.auth(s.handleDiaryCreate))
+	mux.Handle("PUT /api/diary/{id}", s.auth(s.handleDiaryUpdate))
+	mux.Handle("DELETE /api/diary/{id}", s.auth(s.handleDiaryDelete))
+
 	// --- application log / retention (admin settings) ---
 	mux.Handle("GET /api/admin/logs", s.auth(s.handleLogList))
 	mux.Handle("GET /api/admin/log-config", s.auth(s.handleLogConfigGet))

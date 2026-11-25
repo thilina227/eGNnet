@@ -171,7 +171,7 @@ function renderLogin() {
 
 // ---------- app shell ----------
 function renderApp() {
-  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["inventory", t("inventory")], ["settings", t("settings")]];
+  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["inventory", t("inventory")], ["diary", t("diary")], ["settings", t("settings")]];
   root.innerHTML = `
   <header class="app-header"><div class="row">
     <div class="brand">${esc(t("app_short"))}<small>${esc(state.me.officer_name || t("app_title"))}</small></div>
@@ -208,6 +208,7 @@ function renderCurrent() {
   if (state.view.name === "households") return renderHouseholds();
   if (state.view.name === "household") return renderHousehold(state.view.id);
   if (state.view.name === "inventory") return renderInventory();
+  if (state.view.name === "diary") return renderDiary();
   if (state.view.name === "settings") return renderSettings();
 }
 
@@ -852,6 +853,98 @@ async function movementsModal(it) {
     } catch (e) { toast(e.message); }
   };
   loadTxns();
+}
+
+// ---------- work diary / day-book ----------
+const diaryFilter = { division: "", from: "", to: "", q: "" };
+
+async function renderDiary() {
+  const view = document.getElementById("view");
+  const divSel = state.myDivisions.length > 1
+    ? `<div class="field"><label>${esc(t("gn_division"))}</label><select id="d_div">
+        <option value="">${esc(t("all_divisions"))}</option>
+        ${state.myDivisions.map(d => `<option value="${esc(d.id)}" ${diaryFilter.division === d.id ? "selected" : ""}>${esc((d.gn_code ? d.gn_code + " · " : "") + (d["name_" + state.lang] || d.name_en))}</option>`).join("")}</select></div>`
+    : "";
+  view.innerHTML = `
+    <div class="card">
+      <div class="section-sub"><h2>${esc(t("diary"))}</h2><button class="btn sec sm" id="d_add">+ ${esc(t("add_entry"))}</button></div>
+      <div class="toolbar">
+        ${divSel}
+        <div class="field"><label>${esc(t("from_date"))}</label><input id="d_from" type="date" value="${esc(diaryFilter.from)}"></div>
+        <div class="field"><label>${esc(t("to_date"))}</label><input id="d_to" type="date" value="${esc(diaryFilter.to)}"></div>
+        <div class="field grow"><label>${esc(t("search"))}</label><input id="d_q" value="${esc(diaryFilter.q)}"></div>
+      </div>
+      <div id="diaryList"></div>
+    </div>`;
+  const sel = view.querySelector("#d_div");
+  if (sel) sel.onchange = e => { diaryFilter.division = e.target.value; loadDiary(view); };
+  view.querySelector("#d_from").onchange = e => { diaryFilter.from = e.target.value; loadDiary(view); };
+  view.querySelector("#d_to").onchange = e => { diaryFilter.to = e.target.value; loadDiary(view); };
+  let deb;
+  view.querySelector("#d_q").oninput = e => { diaryFilter.q = e.target.value; clearTimeout(deb); deb = setTimeout(() => loadDiary(view), 250); };
+  view.querySelector("#d_add").onclick = () => diaryModal(null);
+  loadDiary(view);
+}
+
+async function loadDiary(view) {
+  const el = view.querySelector("#diaryList");
+  if (!el) return;
+  const qs = new URLSearchParams();
+  if (diaryFilter.division) qs.set("division", diaryFilter.division);
+  if (diaryFilter.from) qs.set("from", diaryFilter.from);
+  if (diaryFilter.to) qs.set("to", diaryFilter.to);
+  if (diaryFilter.q) qs.set("q", diaryFilter.q);
+  const rows = await api("GET", "/api/diary?" + qs.toString()).catch(() => []);
+  const multi = state.myDivisions.length > 1;
+  el.innerHTML = `<table><thead><tr>
+      <th>${esc(t("date"))}</th><th>${esc(t("category"))}</th><th>${esc(t("entry"))}</th>
+      <th>${esc(t("author"))}</th>${multi ? `<th>${esc(t("gn_division"))}</th>` : ""}<th></th></tr></thead>
+    <tbody>${rows.length ? rows.map(d => `<tr>
+        <td>${esc(d.entry_date)}</td>
+        <td>${esc(d.category) || "—"}</td>
+        <td>${d.title ? `<strong>${esc(d.title)}</strong>` : ""}${d.title && d.note ? "<br>" : ""}${esc(d.note) || (d.title ? "" : "—")}</td>
+        <td>${esc(d.author) || "—"}</td>
+        ${multi ? `<td>${esc((d.gn_code ? d.gn_code + " · " : "") + d.division_name)}</td>` : ""}
+        <td style="text-align:right"><button class="btn sec sm" data-edit="${esc(d.id)}">${esc(t("edit"))}</button>
+          <button class="btn danger sm" data-del="${esc(d.id)}">${esc(t("delete"))}</button></td></tr>`).join("")
+      : `<tr><td colspan="${multi ? 6 : 5}" class="empty">${esc(t("no_entries"))}</td></tr>`}</tbody></table>`;
+  el.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => diaryModal(rows.find(x => x.id === b.dataset.edit)));
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirm_delete"))) return;
+    await api("DELETE", "/api/diary/" + b.dataset.del); loadDiary(view);
+  });
+}
+
+function diaryModal(d) {
+  d = d || {};
+  const isNew = !d.id;
+  const today = new Date().toISOString().slice(0, 10);
+  const divOpts = state.myDivisions.map(x => `<option value="${esc(x.id)}" ${x.id === d.gn_division_id ? "selected" : ""}>${esc((x.gn_code ? x.gn_code + " · " : "") + (x["name_" + state.lang] || x.name_en))}</option>`).join("");
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal">
+    <h2>${esc(isNew ? t("add_entry") : t("edit"))}</h2>
+    <div class="grid g2">
+      ${isNew ? `<div class="field"><label>${esc(t("gn_division"))} *</label><select id="d_m_div">${divOpts}</select></div>` : ""}
+      <div class="field"><label>${esc(t("date"))}</label><input id="d_m_date" type="date" value="${esc(d.entry_date || today)}"></div>
+      <div class="field"><label>${esc(t("category"))}</label><input id="d_m_cat" value="${esc(d.category)}" placeholder="${esc(t("diary_cat_hint"))}"></div>
+      <div class="field" style="grid-column:1/-1"><label>${esc(t("title"))}</label><input id="d_m_title" value="${esc(d.title)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>${esc(t("note"))}</label><textarea id="d_m_note" rows="4">${esc(d.note)}</textarea></div>
+    </div>
+    <div class="row-actions"><button class="btn sec" id="d_m_cancel">${esc(t("cancel"))}</button><button class="btn" id="d_m_save">${esc(t("save"))}</button></div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector("#d_m_cancel").onclick = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  bg.querySelector("#d_m_save").onclick = async () => {
+    const q = s => { const e = bg.querySelector(s); return e ? e.value.trim() : ""; };
+    const payload = { entry_date: q("#d_m_date"), category: q("#d_m_cat"), title: q("#d_m_title"), note: q("#d_m_note") };
+    if (!payload.title && !payload.note) return toast(t("diary_need_text"));
+    try {
+      if (isNew) { payload.gn_division_id = bg.querySelector("#d_m_div").value; await api("POST", "/api/diary", payload); }
+      else await api("PUT", "/api/diary/" + d.id, payload);
+      bg.remove(); loadDiary(document.getElementById("view")); toast(t("saved"));
+    } catch (e) { toast(e.message); }
+  };
 }
 
 boot();

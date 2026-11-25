@@ -500,3 +500,19 @@ CREATE TABLE IF NOT EXISTS inventory_txn (
   created_at     TEXT NOT NULL
 );
 CREATE INDEX IF NOT EXISTS ix_invtxn_item ON inventory_txn(item_id, created_at);
+
+-- Work diary / day-book: the officer's dated log of office work.
+-- Division-scoped; records the author (user) but no citizen PII by design.
+CREATE TABLE IF NOT EXISTS diary_entry (
+  id             TEXT PRIMARY KEY,
+  gn_division_id TEXT NOT NULL REFERENCES gn_division(id),
+  user_id        TEXT,
+  entry_date     TEXT NOT NULL,             -- date of the work (user-set)
+  category       TEXT,
+  title          TEXT,
+  note           TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_diary_div ON diary_entry(gn_division_id, entry_date);
