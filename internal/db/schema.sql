@@ -448,6 +448,92 @@ CREATE TABLE IF NOT EXISTS app_config (
   setup_complete  INTEGER NOT NULL DEFAULT 0,
   default_language TEXT NOT NULL DEFAULT 'en',
   office_name     TEXT,
+  log_retention_days INTEGER NOT NULL DEFAULT 180,
   created_at      TEXT,
   updated_at      TEXT
 );
+
+-- Operational / application log, DISTINCT from audit_log.
+-- audit_log = per-row data-change trail (what citizen data changed).
+-- app_log   = operational events: logins, errors, admin actions, sync, system.
+-- Records actors + actions only; never citizen PII.
+CREATE TABLE IF NOT EXISTS app_log (
+  id          TEXT PRIMARY KEY,
+  level       TEXT NOT NULL DEFAULT 'info',   -- info | warn | error
+  category    TEXT NOT NULL DEFAULT 'system', -- auth | admin | sync | error | system
+  user_id     TEXT,
+  username    TEXT,
+  action      TEXT NOT NULL,
+  detail      TEXT,
+  created_at  TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_applog_time ON app_log(created_at);
+CREATE INDEX IF NOT EXISTS ix_applog_cat ON app_log(category, created_at);
+
+-- Office inventory: a stock register (inventory_item) with a movement
+-- history (inventory_txn). Division-scoped, like households.
+CREATE TABLE IF NOT EXISTS inventory_item (
+  id             TEXT PRIMARY KEY,
+  gn_division_id TEXT NOT NULL REFERENCES gn_division(id),
+  name           TEXT NOT NULL,
+  category       TEXT,
+  unit           TEXT,                      -- pcs, box, kg, ...
+  quantity       REAL NOT NULL DEFAULT 0,   -- running balance
+  min_quantity   REAL,                      -- optional reorder level
+  notes          TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_inv_div ON inventory_item(gn_division_id, deleted_at);
+
+CREATE TABLE IF NOT EXISTS inventory_txn (
+  id             TEXT PRIMARY KEY,
+  item_id        TEXT NOT NULL REFERENCES inventory_item(id),
+  txn_type       TEXT NOT NULL,             -- in | out | adjust
+  quantity       REAL NOT NULL,             -- positive magnitude entered
+  balance_after  REAL,                      -- running balance snapshot
+  reference      TEXT,                      -- GRN / issue note / ref
+  note           TEXT,
+  user_id        TEXT,
+  txn_date       TEXT,                      -- date of movement (user-set)
+  created_at     TEXT NOT NULL
+);
+CREATE INDEX IF NOT EXISTS ix_invtxn_item ON inventory_txn(item_id, created_at);
+
+-- Work diary / day-book: the officer's dated log of office work.
+-- Division-scoped; records the author (user) but no citizen PII by design.
+CREATE TABLE IF NOT EXISTS diary_entry (
+  id             TEXT PRIMARY KEY,
+  gn_division_id TEXT NOT NULL REFERENCES gn_division(id),
+  user_id        TEXT,
+  entry_date     TEXT NOT NULL,             -- date of the work (user-set)
+  category       TEXT,
+  title          TEXT,
+  note           TEXT,
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_diary_div ON diary_entry(gn_division_id, entry_date);
+
+-- Transfer-of-work log: records work/files/duties handed from one officer to
+-- another (e.g. on an officer's transfer). officer_assignment already covers
+-- the posting history; this covers the handover of pending work itself.
+-- Division-scoped. from/to are free text (an incoming officer may not yet be
+-- a system user).
+CREATE TABLE IF NOT EXISTS work_transfer (
+  id             TEXT PRIMARY KEY,
+  gn_division_id TEXT NOT NULL REFERENCES gn_division(id),
+  transfer_date  TEXT NOT NULL,
+  from_officer   TEXT,
+  to_officer     TEXT,
+  subject        TEXT,
+  note           TEXT,
+  status         TEXT NOT NULL DEFAULT 'pending',   -- pending | completed
+  user_id        TEXT,                              -- who recorded it
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_transfer_div ON work_transfer(gn_division_id, transfer_date);

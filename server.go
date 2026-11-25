@@ -16,6 +16,8 @@ var webFS embed.FS
 // Server holds dependencies and in-memory sessions.
 type Server struct {
 	db       *DB
+	log      *appLogger
+	dataDir  string // per-user writable app-data folder (photos, logs, db)
 	sessions sync.Map // token -> session
 }
 
@@ -26,7 +28,9 @@ type session struct {
 	expires  time.Time
 }
 
-func newServer(db *DB) *Server { return &Server{db: db} }
+func newServer(db *DB, lg *appLogger, dataDir string) *Server {
+	return &Server{db: db, log: lg, dataDir: dataDir}
+}
 
 func (s *Server) routes() http.Handler {
 	mux := http.NewServeMux()
@@ -55,11 +59,52 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/households/{id}/members", s.auth(s.handleMemberCreate))
 	mux.Handle("PUT /api/members/{id}", s.auth(s.handleMemberUpdate))
 	mux.Handle("DELETE /api/members/{id}", s.auth(s.handleMemberDelete))
+	mux.Handle("GET /api/members/{id}/photo", s.auth(s.handleMemberPhotoGet))
+	mux.Handle("POST /api/members/{id}/photo", s.auth(s.handleMemberPhotoUpload))
+	mux.Handle("DELETE /api/members/{id}/photo", s.auth(s.handleMemberPhotoDelete))
 	mux.Handle("GET /api/households/{id}/welfare", s.auth(s.handleWelfareList))
 	mux.Handle("POST /api/households/{id}/welfare", s.auth(s.handleWelfareCreate))
 	mux.Handle("DELETE /api/welfare/{id}", s.auth(s.handleWelfareDelete))
 	mux.Handle("GET /api/welfare-programs", s.auth(s.handleWelfarePrograms))
 	mux.Handle("GET /api/my-divisions", s.auth(s.handleMyDivisions))
+
+	// asset & economy collections (household children)
+	mux.Handle("GET /api/households/{id}/assets", s.auth(s.handleAssetsGet))
+	mux.Handle("POST /api/households/{id}/assets/{collection}", s.auth(s.handleAssetCreate))
+	mux.Handle("PUT /api/assets/{collection}/{id}", s.auth(s.handleAssetUpdate))
+	mux.Handle("DELETE /api/assets/{collection}/{id}", s.auth(s.handleAssetDelete))
+	mux.Handle("PUT /api/households/{id}/finance", s.auth(s.handleFinanceUpsert))
+
+	// --- office inventory (division-scoped stock register + history) ---
+	mux.Handle("GET /api/inventory", s.auth(s.handleInventoryList))
+	mux.Handle("POST /api/inventory", s.auth(s.handleInventoryCreate))
+	mux.Handle("PUT /api/inventory/{id}", s.auth(s.handleInventoryUpdate))
+	mux.Handle("DELETE /api/inventory/{id}", s.auth(s.handleInventoryDelete))
+	mux.Handle("GET /api/inventory/{id}/txns", s.auth(s.handleInventoryTxns))
+	mux.Handle("POST /api/inventory/{id}/txns", s.auth(s.handleInventoryTxnCreate))
+
+	// --- work diary / day-book (division-scoped) ---
+	mux.Handle("GET /api/diary", s.auth(s.handleDiaryList))
+	mux.Handle("POST /api/diary", s.auth(s.handleDiaryCreate))
+	mux.Handle("PUT /api/diary/{id}", s.auth(s.handleDiaryUpdate))
+	mux.Handle("DELETE /api/diary/{id}", s.auth(s.handleDiaryDelete))
+
+	// --- transfer-of-work log (division-scoped) ---
+	mux.Handle("GET /api/transfers", s.auth(s.handleTransferList))
+	mux.Handle("POST /api/transfers", s.auth(s.handleTransferCreate))
+	mux.Handle("PUT /api/transfers/{id}", s.auth(s.handleTransferUpdate))
+	mux.Handle("DELETE /api/transfers/{id}", s.auth(s.handleTransferDelete))
+
+	// --- application log / retention (admin settings) ---
+	mux.Handle("GET /api/admin/logs", s.auth(s.handleLogList))
+	mux.Handle("GET /api/admin/log-config", s.auth(s.handleLogConfigGet))
+	mux.Handle("PUT /api/admin/log-config", s.auth(s.handleLogConfigSet))
+	mux.Handle("POST /api/admin/logs/sweep", s.auth(s.handleLogSweep))
+	mux.Handle("GET /api/admin/logs/export", s.auth(s.handleLogExport))
+
+	// --- printable reports (server-rendered HTML; print / save as PDF) ---
+	mux.Handle("GET /report/household/{id}", s.auth(s.handleHouseholdReport))
+	mux.Handle("GET /report/division/{id}", s.auth(s.handleDivisionReport))
 
 	// --- static UI ---
 	sub, _ := fs.Sub(webFS, "internal/web")
@@ -77,13 +122,38 @@ func (s *Server) routes() http.Handler {
 		_, _ = w.Write(b)
 	})
 
-	return logRequests(mux)
+	return s.logRequests(mux)
 }
 
 // ---- middleware & helpers ----
 
-func logRequests(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { next.ServeHTTP(w, r) })
+// statusRecorder captures the response status so we can log server errors.
+type statusRecorder struct {
+	http.ResponseWriter
+	status int
+}
+
+func (sr *statusRecorder) WriteHeader(code int) {
+	sr.status = code
+	sr.ResponseWriter.WriteHeader(code)
+}
+
+// logRequests records 5xx responses to the operational log as errors.
+// Only the method, path (which carries UUIDs, not citizen PII) and status
+// are logged — never request bodies.
+func (s *Server) logRequests(next http.Handler) http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		sr := &statusRecorder{ResponseWriter: w, status: http.StatusOK}
+		next.ServeHTTP(sr, r)
+		if sr.status >= 500 && s.log != nil {
+			username := ""
+			if sess := s.currentSession(r); sess != nil {
+				username = sess.username
+			}
+			s.log.write("error", "error", "", username, "request_failed",
+				r.Method+" "+r.URL.Path+" → "+http.StatusText(sr.status))
+		}
+	})
 }
 
 const cookieName = "egnnet_session"

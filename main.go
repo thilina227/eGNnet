@@ -20,10 +20,10 @@ func main() {
 	)
 	flag.Parse()
 
+	dataDir := appDataDir()
+	_ = os.MkdirAll(dataDir, 0o755)
 	if *dbPath == "" {
-		dir := appDataDir()
-		_ = os.MkdirAll(dir, 0o755)
-		*dbPath = filepath.Join(dir, "eGNnet.db")
+		*dbPath = filepath.Join(dataDir, "eGNnet.db")
 	}
 
 	db, err := openDB(*dbPath)
@@ -35,7 +35,12 @@ func main() {
 		log.Fatalf("migrate: %v", err)
 	}
 
-	srv := newServer(db)
+	logger := newAppLogger(db, dataDir)
+	logger.start()
+	logger.write("info", "system", "", "", "startup",
+		fmt.Sprintf("eGNnet %s env=%s commit=%s", version, appEnv, commit))
+
+	srv := newServer(db, logger, dataDir)
 	httpSrv := &http.Server{
 		Addr:         *addr,
 		Handler:      srv.routes(),
