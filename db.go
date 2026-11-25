@@ -43,11 +43,15 @@ func (db *DB) migrate() error {
 	}
 	// add columns introduced after v0.1 (ignore "duplicate column" on re-run)
 	_, _ = db.Exec(`ALTER TABLE app_config ADD COLUMN log_retention_days INTEGER NOT NULL DEFAULT 180`)
+	_, _ = db.Exec(`ALTER TABLE app_config ADD COLUMN issue_email TEXT`)
 	// ensure the single config row exists
 	if _, err := db.Exec(`INSERT OR IGNORE INTO app_config(id,setup_complete,default_language,created_at,updated_at)
 		VALUES(1,0,'en',datetime('now'),datetime('now'))`); err != nil {
 		return fmt.Errorf("config row: %w", err)
 	}
+	// seed the default issue-report recipient once (admins can change it in Settings)
+	_, _ = db.Exec(`UPDATE app_config SET issue_email=? WHERE id=1 AND (issue_email IS NULL OR issue_email='')`,
+		defaultIssueEmail)
 	// seed lookups/hierarchy only once
 	var n int
 	if err := db.QueryRow(`SELECT COUNT(*) FROM lookup_option`).Scan(&n); err != nil {

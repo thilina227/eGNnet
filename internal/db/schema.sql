@@ -449,6 +449,8 @@ CREATE TABLE IF NOT EXISTS app_config (
   default_language TEXT NOT NULL DEFAULT 'en',
   office_name     TEXT,
   log_retention_days INTEGER NOT NULL DEFAULT 180,
+  issue_email     TEXT,          -- recipient group for in-app issue reports
+
   created_at      TEXT,
   updated_at      TEXT
 );
@@ -469,6 +471,33 @@ CREATE TABLE IF NOT EXISTS app_log (
 );
 CREATE INDEX IF NOT EXISTS ix_applog_time ON app_log(created_at);
 CREATE INDEX IF NOT EXISTS ix_applog_cat ON app_log(category, created_at);
+
+-- In-app issue / feedback reports raised by officers. Captured locally with a
+-- diagnostics snapshot (app version + recent operational-log lines, never
+-- citizen PII), then delivered out to the contributors' email group via the
+-- officer's own mail client. github_issue_number and synced are filled later
+-- by the email-to-issue automation or the central-tier sync, so the same row
+-- round-trips a status back into the app without any schema change.
+CREATE TABLE IF NOT EXISTS issue_report (
+  id                  TEXT PRIMARY KEY,
+  report_type         TEXT NOT NULL DEFAULT 'bug',  -- bug | suggestion | question
+  title               TEXT NOT NULL,
+  description         TEXT,
+  status              TEXT NOT NULL DEFAULT 'open',  -- open | sent | acknowledged | resolved
+  app_version         TEXT,
+  app_commit          TEXT,
+  app_env             TEXT,
+  os_info             TEXT,
+  diagnostics         TEXT,        -- the captured snapshot block (parser-friendly)
+  github_issue_number INTEGER,     -- filled by the automation / sync, if any
+  synced              INTEGER NOT NULL DEFAULT 0,
+  user_id             TEXT,
+  username            TEXT,
+  created_at          TEXT NOT NULL,
+  updated_at          TEXT NOT NULL,
+  deleted_at          TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_issue_time ON issue_report(created_at);
 
 -- Office inventory: a stock register (inventory_item) with a movement
 -- history (inventory_txn). Division-scoped, like households.
