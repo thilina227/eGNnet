@@ -89,6 +89,12 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("PUT /api/diary/{id}", s.auth(s.handleDiaryUpdate))
 	mux.Handle("DELETE /api/diary/{id}", s.auth(s.handleDiaryDelete))
 
+	// --- transfer-of-work log (division-scoped) ---
+	mux.Handle("GET /api/transfers", s.auth(s.handleTransferList))
+	mux.Handle("POST /api/transfers", s.auth(s.handleTransferCreate))
+	mux.Handle("PUT /api/transfers/{id}", s.auth(s.handleTransferUpdate))
+	mux.Handle("DELETE /api/transfers/{id}", s.auth(s.handleTransferDelete))
+
 	// --- application log / retention (admin settings) ---
 	mux.Handle("GET /api/admin/logs", s.auth(s.handleLogList))
 	mux.Handle("GET /api/admin/log-config", s.auth(s.handleLogConfigGet))

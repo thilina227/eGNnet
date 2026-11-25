@@ -171,7 +171,7 @@ function renderLogin() {
 
 // ---------- app shell ----------
 function renderApp() {
-  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["inventory", t("inventory")], ["diary", t("diary")], ["settings", t("settings")]];
+  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["inventory", t("inventory")], ["diary", t("diary")], ["transfers", t("transfers")], ["settings", t("settings")]];
   root.innerHTML = `
   <header class="app-header"><div class="row">
     <div class="brand">${esc(t("app_short"))}<small>${esc(state.me.officer_name || t("app_title"))}</small></div>
@@ -209,6 +209,7 @@ function renderCurrent() {
   if (state.view.name === "household") return renderHousehold(state.view.id);
   if (state.view.name === "inventory") return renderInventory();
   if (state.view.name === "diary") return renderDiary();
+  if (state.view.name === "transfers") return renderTransfers();
   if (state.view.name === "settings") return renderSettings();
 }
 
@@ -943,6 +944,111 @@ function diaryModal(d) {
       if (isNew) { payload.gn_division_id = bg.querySelector("#d_m_div").value; await api("POST", "/api/diary", payload); }
       else await api("PUT", "/api/diary/" + d.id, payload);
       bg.remove(); loadDiary(document.getElementById("view")); toast(t("saved"));
+    } catch (e) { toast(e.message); }
+  };
+}
+
+// ---------- transfer-of-work log ----------
+const transferFilter = { division: "", status: "", q: "" };
+
+async function renderTransfers() {
+  const view = document.getElementById("view");
+  const divSel = state.myDivisions.length > 1
+    ? `<div class="field"><label>${esc(t("gn_division"))}</label><select id="tr_div">
+        <option value="">${esc(t("all_divisions"))}</option>
+        ${state.myDivisions.map(d => `<option value="${esc(d.id)}" ${transferFilter.division === d.id ? "selected" : ""}>${esc((d.gn_code ? d.gn_code + " · " : "") + (d["name_" + state.lang] || d.name_en))}</option>`).join("")}</select></div>`
+    : "";
+  view.innerHTML = `
+    <div class="card">
+      <div class="section-sub"><h2>${esc(t("transfers"))}</h2><button class="btn sec sm" id="tr_add">+ ${esc(t("add_transfer"))}</button></div>
+      <div class="toolbar">
+        ${divSel}
+        <div class="field"><label>${esc(t("status"))}</label><select id="tr_status">
+          <option value="">${esc(t("all"))}</option>
+          <option value="pending" ${transferFilter.status === "pending" ? "selected" : ""}>${esc(t("status_pending"))}</option>
+          <option value="completed" ${transferFilter.status === "completed" ? "selected" : ""}>${esc(t("status_completed"))}</option></select></div>
+        <div class="field grow"><label>${esc(t("search"))}</label><input id="tr_q" value="${esc(transferFilter.q)}"></div>
+      </div>
+      <div id="transferList"></div>
+    </div>`;
+  const sel = view.querySelector("#tr_div");
+  if (sel) sel.onchange = e => { transferFilter.division = e.target.value; loadTransfers(view); };
+  view.querySelector("#tr_status").onchange = e => { transferFilter.status = e.target.value; loadTransfers(view); };
+  let deb;
+  view.querySelector("#tr_q").oninput = e => { transferFilter.q = e.target.value; clearTimeout(deb); deb = setTimeout(() => loadTransfers(view), 250); };
+  view.querySelector("#tr_add").onclick = () => transferModal(null);
+  loadTransfers(view);
+}
+
+async function loadTransfers(view) {
+  const el = view.querySelector("#transferList");
+  if (!el) return;
+  const qs = new URLSearchParams();
+  if (transferFilter.division) qs.set("division", transferFilter.division);
+  if (transferFilter.status) qs.set("status", transferFilter.status);
+  if (transferFilter.q) qs.set("q", transferFilter.q);
+  const rows = await api("GET", "/api/transfers?" + qs.toString()).catch(() => []);
+  const multi = state.myDivisions.length > 1;
+  const stLabel = st => st === "completed" ? t("status_completed") : t("status_pending");
+  el.innerHTML = `<table><thead><tr>
+      <th>${esc(t("date"))}</th><th>${esc(t("subject"))}</th><th>${esc(t("from_officer"))} → ${esc(t("to_officer"))}</th>
+      <th>${esc(t("status"))}</th>${multi ? `<th>${esc(t("gn_division"))}</th>` : ""}<th></th></tr></thead>
+    <tbody>${rows.length ? rows.map(x => `<tr>
+        <td>${esc(x.transfer_date)}</td>
+        <td>${x.subject ? `<strong>${esc(x.subject)}</strong>` : "—"}${x.note ? `<br><span class="muted">${esc(x.note)}</span>` : ""}</td>
+        <td>${esc(x.from_officer) || "—"} → ${esc(x.to_officer) || "—"}</td>
+        <td><span class="badge badge-${x.status === "completed" ? "info" : "warn"}">${esc(stLabel(x.status))}</span></td>
+        ${multi ? `<td>${esc((x.gn_code ? x.gn_code + " · " : "") + x.division_name)}</td>` : ""}
+        <td style="text-align:right">
+          ${x.status === "pending" ? `<button class="btn sec sm" data-done="${esc(x.id)}">${esc(t("mark_completed"))}</button>` : ""}
+          <button class="btn sec sm" data-edit="${esc(x.id)}">${esc(t("edit"))}</button>
+          <button class="btn danger sm" data-del="${esc(x.id)}">${esc(t("delete"))}</button></td></tr>`).join("")
+      : `<tr><td colspan="${multi ? 6 : 5}" class="empty">${esc(t("no_transfers"))}</td></tr>`}</tbody></table>`;
+  el.querySelectorAll("[data-done]").forEach(b => b.onclick = async () => {
+    await api("PUT", "/api/transfers/" + b.dataset.done, { status: "completed" }); loadTransfers(view); toast(t("saved"));
+  });
+  el.querySelectorAll("[data-edit]").forEach(b => b.onclick = () => transferModal(rows.find(x => x.id === b.dataset.edit)));
+  el.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirm_delete"))) return;
+    await api("DELETE", "/api/transfers/" + b.dataset.del); loadTransfers(view);
+  });
+}
+
+function transferModal(x) {
+  x = x || {};
+  const isNew = !x.id;
+  const today = new Date().toISOString().slice(0, 10);
+  const divOpts = state.myDivisions.map(d => `<option value="${esc(d.id)}" ${d.id === x.gn_division_id ? "selected" : ""}>${esc((d.gn_code ? d.gn_code + " · " : "") + (d["name_" + state.lang] || d.name_en))}</option>`).join("");
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal">
+    <h2>${esc(isNew ? t("add_transfer") : t("edit"))}</h2>
+    <div class="grid g2">
+      ${isNew ? `<div class="field"><label>${esc(t("gn_division"))} *</label><select id="tr_m_div">${divOpts}</select></div>` : ""}
+      <div class="field"><label>${esc(t("date"))}</label><input id="tr_m_date" type="date" value="${esc(x.transfer_date || today)}"></div>
+      <div class="field"><label>${esc(t("from_officer"))}</label><input id="tr_m_from" value="${esc(x.from_officer)}"></div>
+      <div class="field"><label>${esc(t("to_officer"))}</label><input id="tr_m_to" value="${esc(x.to_officer)}"></div>
+      <div class="field"><label>${esc(t("status"))}</label><select id="tr_m_status">
+        <option value="pending" ${x.status !== "completed" ? "selected" : ""}>${esc(t("status_pending"))}</option>
+        <option value="completed" ${x.status === "completed" ? "selected" : ""}>${esc(t("status_completed"))}</option></select></div>
+      <div class="field" style="grid-column:1/-1"><label>${esc(t("subject"))} *</label><input id="tr_m_subject" value="${esc(x.subject)}"></div>
+      <div class="field" style="grid-column:1/-1"><label>${esc(t("note"))}</label><textarea id="tr_m_note" rows="3">${esc(x.note)}</textarea></div>
+    </div>
+    <div class="row-actions"><button class="btn sec" id="tr_m_cancel">${esc(t("cancel"))}</button><button class="btn" id="tr_m_save">${esc(t("save"))}</button></div></div>`;
+  document.body.appendChild(bg);
+  bg.querySelector("#tr_m_cancel").onclick = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  bg.querySelector("#tr_m_save").onclick = async () => {
+    const q = s => { const e = bg.querySelector(s); return e ? e.value.trim() : ""; };
+    const payload = {
+      transfer_date: q("#tr_m_date"), from_officer: q("#tr_m_from"), to_officer: q("#tr_m_to"),
+      subject: q("#tr_m_subject"), note: q("#tr_m_note"), status: bg.querySelector("#tr_m_status").value,
+    };
+    if (!payload.subject) return toast(t("subject"));
+    try {
+      if (isNew) { payload.gn_division_id = bg.querySelector("#tr_m_div").value; await api("POST", "/api/transfers", payload); }
+      else await api("PUT", "/api/transfers/" + x.id, payload);
+      bg.remove(); loadTransfers(document.getElementById("view")); toast(t("saved"));
     } catch (e) { toast(e.message); }
   };
 }

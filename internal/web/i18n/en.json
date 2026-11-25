@@ -193,5 +193,15 @@
   "to_date": "To",
   "no_entries": "No diary entries yet. Add one to get started.",
   "diary_cat_hint": "e.g. meeting, field visit, inquiry",
-  "diary_need_text": "Enter a title or a note"
+  "diary_need_text": "Enter a title or a note",
+  "transfers": "Work transfers",
+  "add_transfer": "Add transfer",
+  "subject": "Subject",
+  "from_officer": "From",
+  "to_officer": "To",
+  "status": "Status",
+  "status_pending": "Pending",
+  "status_completed": "Completed",
+  "mark_completed": "Mark completed",
+  "no_transfers": "No work transfers logged yet. Add one to get started."
 }
