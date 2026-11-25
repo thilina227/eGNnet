@@ -102,6 +102,10 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("POST /api/admin/logs/sweep", s.auth(s.handleLogSweep))
 	mux.Handle("GET /api/admin/logs/export", s.auth(s.handleLogExport))
 
+	// --- printable reports (server-rendered HTML; print / save as PDF) ---
+	mux.Handle("GET /report/household/{id}", s.auth(s.handleHouseholdReport))
+	mux.Handle("GET /report/division/{id}", s.auth(s.handleDivisionReport))
+
 	// --- static UI ---
 	sub, _ := fs.Sub(webFS, "internal/web")
 	fileServer := http.FileServer(http.FS(sub))

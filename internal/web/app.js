@@ -171,7 +171,7 @@ function renderLogin() {
 
 // ---------- app shell ----------
 function renderApp() {
-  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["inventory", t("inventory")], ["diary", t("diary")], ["transfers", t("transfers")], ["settings", t("settings")]];
+  const nav = [["dashboard", t("dashboard")], ["households", t("households")], ["inventory", t("inventory")], ["diary", t("diary")], ["transfers", t("transfers")], ["reports", t("reports")], ["settings", t("settings")]];
   root.innerHTML = `
   <header class="app-header"><div class="row">
     <div class="brand">${esc(t("app_short"))}<small>${esc(state.me.officer_name || t("app_title"))}</small></div>
@@ -210,6 +210,7 @@ function renderCurrent() {
   if (state.view.name === "inventory") return renderInventory();
   if (state.view.name === "diary") return renderDiary();
   if (state.view.name === "transfers") return renderTransfers();
+  if (state.view.name === "reports") return renderReports();
   if (state.view.name === "settings") return renderSettings();
 }
 
@@ -278,7 +279,10 @@ async function renderHousehold(id) {
   const divOpts = state.myDivisions.map(d => `<option value="${esc(d.id)}" ${d.id === H.gn_division_id ? "selected" : ""}>${esc((d.gn_code ? d.gn_code + " · " : "") + (d["name_" + state.lang] || d.name_en))}</option>`).join("");
 
   view.innerHTML = `
-    <button class="btn sec sm" id="back">← ${esc(t("back"))}</button>
+    <div class="toolbar" style="margin-bottom:0">
+      <button class="btn sec sm" id="back">← ${esc(t("back"))}</button>
+      ${id ? `<a class="btn sec sm" href="/report/household/${esc(id)}?lang=${esc(state.lang)}" target="_blank" rel="noopener">${esc(t("print_report"))}</a>` : ""}
+    </div>
     <div class="card" style="margin-top:.8rem">
       <h2>${esc(t("household_info"))}</h2>
       <div class="grid g3">
@@ -1051,6 +1055,25 @@ function transferModal(x) {
       bg.remove(); loadTransfers(document.getElementById("view")); toast(t("saved"));
     } catch (e) { toast(e.message); }
   };
+}
+
+// ---------- reports ----------
+function renderReports() {
+  const view = document.getElementById("view");
+  view.innerHTML = `
+    <div class="card">
+      <h2>${esc(t("reports"))}</h2>
+      <p class="muted">${esc(t("reports_help"))}</p>
+      <h3 style="margin-top:1rem">${esc(t("division_reports"))}</h3>
+      <table><thead><tr><th>${esc(t("gn_division"))}</th><th>${esc(t("ds_division"))}</th><th></th></tr></thead>
+      <tbody>${state.myDivisions.length ? state.myDivisions.map(d => `<tr>
+          <td>${esc((d.gn_code ? d.gn_code + " · " : "") + (d["name_" + state.lang] || d.name_en))}</td>
+          <td>${esc(d.ds_name)}</td>
+          <td style="text-align:right"><a class="btn sec sm" href="/report/division/${esc(d.id)}?lang=${esc(state.lang)}" target="_blank" rel="noopener">${esc(t("open_report"))}</a></td></tr>`).join("")
+        : `<tr><td colspan="3" class="empty">—</td></tr>`}</tbody></table>
+      <h3 style="margin-top:1.4rem">${esc(t("household_reports"))}</h3>
+      <p class="muted">${esc(t("household_reports_help"))}</p>
+    </div>`;
 }
 
 boot();

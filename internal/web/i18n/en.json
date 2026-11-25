@@ -203,5 +203,12 @@
   "status_pending": "Pending",
   "status_completed": "Completed",
   "mark_completed": "Mark completed",
-  "no_transfers": "No work transfers logged yet. Add one to get started."
+  "no_transfers": "No work transfers logged yet. Add one to get started.",
+  "reports": "Reports",
+  "reports_help": "Printable reports open in a new tab — use your browser's Print to print or save as PDF.",
+  "division_reports": "Division reports",
+  "household_reports": "Household reports",
+  "household_reports_help": "Open any household and use the “Print report” button for a full household report.",
+  "open_report": "Open report",
+  "print_report": "Print report"
 }
