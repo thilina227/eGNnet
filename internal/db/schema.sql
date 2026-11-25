@@ -516,3 +516,24 @@ CREATE TABLE IF NOT EXISTS diary_entry (
   deleted_at     TEXT
 );
 CREATE INDEX IF NOT EXISTS ix_diary_div ON diary_entry(gn_division_id, entry_date);
+
+-- Transfer-of-work log: records work/files/duties handed from one officer to
+-- another (e.g. on an officer's transfer). officer_assignment already covers
+-- the posting history; this covers the handover of pending work itself.
+-- Division-scoped. from/to are free text (an incoming officer may not yet be
+-- a system user).
+CREATE TABLE IF NOT EXISTS work_transfer (
+  id             TEXT PRIMARY KEY,
+  gn_division_id TEXT NOT NULL REFERENCES gn_division(id),
+  transfer_date  TEXT NOT NULL,
+  from_officer   TEXT,
+  to_officer     TEXT,
+  subject        TEXT,
+  note           TEXT,
+  status         TEXT NOT NULL DEFAULT 'pending',   -- pending | completed
+  user_id        TEXT,                              -- who recorded it
+  created_at     TEXT NOT NULL,
+  updated_at     TEXT NOT NULL,
+  deleted_at     TEXT
+);
+CREATE INDEX IF NOT EXISTS ix_transfer_div ON work_transfer(gn_division_id, transfer_date);
