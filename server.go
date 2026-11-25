@@ -95,6 +95,15 @@ func (s *Server) routes() http.Handler {
 	mux.Handle("PUT /api/transfers/{id}", s.auth(s.handleTransferUpdate))
 	mux.Handle("DELETE /api/transfers/{id}", s.auth(s.handleTransferDelete))
 
+	// --- in-app issue / feedback reporting ---
+	mux.Handle("GET /api/issues", s.auth(s.handleIssueList))
+	mux.Handle("POST /api/issues", s.auth(s.handleIssueCreate))
+	mux.Handle("GET /api/issues/config", s.auth(s.handleIssueConfigGet))
+	mux.Handle("PUT /api/issues/config", s.auth(s.handleIssueConfigSet))
+	mux.Handle("GET /api/issues/{id}/email", s.auth(s.handleIssueEmail))
+	mux.Handle("PUT /api/issues/{id}", s.auth(s.handleIssueUpdate))
+	mux.Handle("DELETE /api/issues/{id}", s.auth(s.handleIssueDelete))
+
 	// --- application log / retention (admin settings) ---
 	mux.Handle("GET /api/admin/logs", s.auth(s.handleLogList))
 	mux.Handle("GET /api/admin/log-config", s.auth(s.handleLogConfigGet))

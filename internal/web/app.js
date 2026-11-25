@@ -184,12 +184,14 @@ function renderApp() {
         <option value="ta" ${state.lang === "ta" ? "selected" : ""}>த</option>
       </select>
       <span class="who">${esc(state.me.username)}</span>
+      <button class="btn sec sm" id="reportIssue" title="${esc(t("report_issue"))}">⚑ ${esc(t("report_issue"))}</button>
       <button class="btn sec sm" id="logout">${esc(t("logout"))}</button>
     </div>
   </div></header>
   <main id="view"></main>`;
 
   root.querySelectorAll("[data-nav]").forEach(a => a.onclick = e => { e.preventDefault(); state.view = { name: a.dataset.nav }; renderCurrent(); });
+  root.querySelector("#reportIssue").onclick = () => issueModal();
   root.querySelector("#logout").onclick = async () => { await api("POST", "/api/logout"); location.reload(); };
   root.querySelector("#langSel").onchange = async e => {
     await setLanguage(e.target.value);
@@ -610,6 +612,150 @@ function assetModal(householdId, coll, row) {
   };
 }
 
+// ---------- issue / feedback reporting ----------
+function buildMailto(email) {
+  return "mailto:" + encodeURIComponent(email.to) +
+    "?subject=" + encodeURIComponent(email.subject) +
+    "&body=" + encodeURIComponent(email.body);
+}
+
+async function copyText(text) {
+  try {
+    if (navigator.clipboard && navigator.clipboard.writeText) { await navigator.clipboard.writeText(text); return true; }
+  } catch (e) {}
+  try {
+    const ta = document.createElement("textarea");
+    ta.value = text; ta.style.position = "fixed"; ta.style.opacity = "0";
+    document.body.appendChild(ta); ta.focus(); ta.select();
+    const ok = document.execCommand("copy"); ta.remove(); return ok;
+  } catch (e) { return false; }
+}
+
+// Second step: after a report is saved, help the officer send it out.
+function issueSendStep(bg, id, email) {
+  bg.querySelector(".modal").innerHTML = `
+    <h2>${esc(t("report_issue"))}</h2>
+    <p class="muted">${esc(t("issue_saved_help"))}</p>
+    <div class="field"><label>${esc(t("issue_send_to"))}</label>
+      <input id="iv_to" value="${esc(email.to)}" readonly></div>
+    <div class="field"><label>${esc(t("issue_email_preview"))}</label>
+      <textarea id="iv_body" rows="8" readonly style="font-family:monospace;font-size:.8rem">${esc(email.subject + "\n\n" + email.body)}</textarea></div>
+    <div class="row-actions" style="flex-wrap:wrap;gap:.5rem">
+      <button class="btn sec" id="iv_copy">${esc(t("issue_copy"))}</button>
+      <a class="btn" id="iv_open" href="${esc(buildMailto(email))}">${esc(t("issue_open_mail"))}</a>
+      <button class="btn sec" id="iv_mark">${esc(t("issue_mark_sent"))}</button>
+      <button class="btn sec" id="iv_done">${esc(t("close"))}</button>
+    </div>`;
+  const m = bg.querySelector(".modal");
+  m.querySelector("#iv_copy").onclick = async () => {
+    const ok = await copyText(email.subject + "\n\n" + email.body);
+    toast(ok ? t("issue_copied") : t("issue_copy_failed"));
+  };
+  m.querySelector("#iv_mark").onclick = async () => {
+    try { await api("PUT", "/api/issues/" + id, { status: "sent" }); toast(t("saved")); } catch (e) { toast(e.message); }
+    bg.remove();
+    if (state.view.name === "settings") renderSettings();
+  };
+  m.querySelector("#iv_done").onclick = () => {
+    bg.remove();
+    if (state.view.name === "settings") renderSettings();
+  };
+}
+
+function issueModal() {
+  const bg = document.createElement("div");
+  bg.className = "modal-bg";
+  bg.innerHTML = `<div class="modal">
+    <h2>${esc(t("report_issue"))}</h2>
+    <p class="muted">${esc(t("issue_intro"))}</p>
+    <div class="grid g2">
+      <div class="field"><label>${esc(t("issue_type"))}</label>
+        <select id="iss_type">
+          <option value="bug">${esc(t("issue_type_bug"))}</option>
+          <option value="suggestion">${esc(t("issue_type_suggestion"))}</option>
+          <option value="question">${esc(t("issue_type_question"))}</option>
+        </select></div>
+      <div class="field"><label>${esc(t("issue_title"))} *</label><input id="iss_title"></div>
+    </div>
+    <div class="field"><label>${esc(t("issue_desc"))}</label>
+      <textarea id="iss_desc" rows="5" placeholder="${esc(t("issue_desc_ph"))}"></textarea></div>
+    <p class="muted" style="font-size:.8rem">${esc(t("issue_diag_note"))}</p>
+    <div class="row-actions"><button class="btn sec" id="iss_cancel">${esc(t("cancel"))}</button>
+      <button class="btn" id="iss_save">${esc(t("issue_submit"))}</button></div>
+  </div>`;
+  document.body.appendChild(bg);
+  bg.querySelector("#iss_cancel").onclick = () => bg.remove();
+  bg.onclick = e => { if (e.target === bg) bg.remove(); };
+  bg.querySelector("#iss_save").onclick = async () => {
+    const title = bg.querySelector("#iss_title").value.trim();
+    if (!title) { toast(t("issue_title_required")); return; }
+    try {
+      const r = await api("POST", "/api/issues", {
+        report_type: bg.querySelector("#iss_type").value,
+        title,
+        description: bg.querySelector("#iss_desc").value.trim(),
+      });
+      issueSendStep(bg, r.id, r.email);
+    } catch (e) { toast(e.message); }
+  };
+}
+
+const ISSUE_STATUSES = ["open", "sent", "acknowledged", "resolved"];
+
+async function renderIssuesCard(view) {
+  const card = view.querySelector("#issuesCard");
+  if (!card) return;
+  const cfg = await api("GET", "/api/issues/config").catch(() => ({ issue_email: "" }));
+  const rows = await api("GET", "/api/issues").catch(() => []);
+  card.innerHTML = `
+    <h2>${esc(t("issue_reports"))}</h2>
+    <p class="muted">${esc(t("issue_reports_help"))}</p>
+    <div class="toolbar">
+      <div class="field grow"><label>${esc(t("issue_recipient"))}</label>
+        <input id="iss_email" value="${esc(cfg.issue_email)}" placeholder="group@example.com"></div>
+      <button class="btn sec" id="iss_email_save">${esc(t("save"))}</button>
+    </div>
+    <table><thead><tr>
+      <th>${esc(t("date"))}</th><th>${esc(t("issue_type"))}</th><th>${esc(t("issue_title"))}</th>
+      <th>${esc(t("status"))}</th><th>${esc(t("user"))}</th><th></th></tr></thead>
+    <tbody>${rows.length ? rows.map(r => `<tr>
+        <td>${esc(fmtTime(r.created_at))}</td>
+        <td>${esc(t("issue_type_" + r.report_type) || r.report_type)}</td>
+        <td>${esc(r.title)}</td>
+        <td><span class="badge badge-${esc(r.status)}">${esc(t("issue_status_" + r.status) || r.status)}</span></td>
+        <td>${esc(r.username || "")}</td>
+        <td style="text-align:right;white-space:nowrap">
+          <button class="btn sec sm" data-send="${esc(r.id)}">${esc(t("issue_send"))}</button>
+          <select class="sm-select" data-status="${esc(r.id)}">
+            ${ISSUE_STATUSES.map(st => `<option value="${st}" ${r.status === st ? "selected" : ""}>${esc(t("issue_status_" + st) || st)}</option>`).join("")}
+          </select>
+          <button class="btn danger sm" data-del="${esc(r.id)}">${esc(t("delete"))}</button></td></tr>`).join("")
+      : `<tr><td colspan="6" class="empty">${esc(t("issue_none"))}</td></tr>`}</tbody></table>`;
+
+  card.querySelector("#iss_email_save").onclick = async () => {
+    try { await api("PUT", "/api/issues/config", { issue_email: card.querySelector("#iss_email").value.trim() }); toast(t("saved")); }
+    catch (e) { toast(e.message); }
+  };
+  card.querySelectorAll("[data-send]").forEach(b => b.onclick = async () => {
+    try {
+      const email = await api("GET", "/api/issues/" + b.dataset.send + "/email");
+      const bg = document.createElement("div"); bg.className = "modal-bg";
+      bg.innerHTML = `<div class="modal"></div>`;
+      document.body.appendChild(bg);
+      bg.onclick = e => { if (e.target === bg) bg.remove(); };
+      issueSendStep(bg, b.dataset.send, email);
+    } catch (e) { toast(e.message); }
+  });
+  card.querySelectorAll("[data-status]").forEach(sel => sel.onchange = async () => {
+    try { await api("PUT", "/api/issues/" + sel.dataset.status, { status: sel.value }); toast(t("saved")); renderIssuesCard(view); }
+    catch (e) { toast(e.message); }
+  });
+  card.querySelectorAll("[data-del]").forEach(b => b.onclick = async () => {
+    if (!confirm(t("confirm_delete"))) return;
+    await api("DELETE", "/api/issues/" + b.dataset.del); renderIssuesCard(view);
+  });
+}
+
 // ---------- settings: application log + retention ----------
 const LOG_CATEGORIES = ["", "auth", "admin", "error", "sync", "system"];
 const LOG_LEVELS = ["", "info", "warn", "error"];
@@ -632,6 +778,7 @@ async function renderSettings() {
       <div class="stat"><div class="n">${cfg.audit_log_count}</div><div class="l">${esc(t("audit_log_entries"))}</div></div>
       <div class="stat"><div class="n">${(cfg.archives || []).length}</div><div class="l">${esc(t("archived_files"))}</div></div>
     </div>
+    <div class="card" id="issuesCard"></div>
     <div class="card">
       <h2>${esc(t("log_retention"))}</h2>
       <p class="muted">${esc(t("log_retention_help"))}</p>
@@ -675,6 +822,7 @@ async function renderSettings() {
   let deb;
   view.querySelector("#f_q").oninput = e => { logFilter.q = e.target.value; clearTimeout(deb); deb = setTimeout(reload, 250); };
   loadLogTable(view);
+  renderIssuesCard(view);
 }
 
 async function loadLogTable(view) {
