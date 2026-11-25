@@ -18,6 +18,9 @@ var schemaSQL string
 //go:embed internal/db/seed.sql
 var seedSQL string
 
+//go:embed internal/db/divisions.sql
+var divisionsSQL string
+
 // DB wraps the SQLite connection.
 type DB struct{ *sql.DB }
 
@@ -53,6 +56,16 @@ func (db *DB) migrate() error {
 	if n == 0 {
 		if _, err := db.Exec(seedSQL); err != nil {
 			return fmt.Errorf("seed: %w", err)
+		}
+	}
+	// seed the full administrative hierarchy (island-wide MOHA dataset) once
+	var g int
+	if err := db.QueryRow(`SELECT COUNT(*) FROM gn_division`).Scan(&g); err != nil {
+		return err
+	}
+	if g == 0 {
+		if _, err := db.Exec(divisionsSQL); err != nil {
+			return fmt.Errorf("divisions: %w", err)
 		}
 	}
 	return nil
