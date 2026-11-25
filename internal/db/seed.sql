@@ -1,49 +1,9 @@
 -- eGNnet seed data (auto-generated). Sinhala labels included; Tamil to be filled later.
 PRAGMA foreign_keys = ON;
 
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_WP','WP','Western','බස්නාහිර');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_CP','CP','Central','මධ්‍යම');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_SP','SP','Southern','දකුණු');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_NP','NP','Northern','උතුරු');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_EP','EP','Eastern','නැගෙනහිර');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_NW','NW','North Western','වයඹ');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_NC','NC','North Central','උතුරු මැද');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_UP','UP','Uva','ඌව');
-INSERT OR IGNORE INTO province(id,code,name_en,name_si) VALUES('prov_SG','SG','Sabaragamuwa','සබරගමුව');
+-- Administrative hierarchy (province/district/ds_division/gn_division) is seeded
+-- separately from divisions.sql (full island-wide MOHA dataset).
 
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_colombo','prov_WP','colombo','Colombo','කොළඹ');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_gampaha','prov_WP','gampaha','Gampaha','ගම්පහ');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_kalutara','prov_WP','kalutara','Kalutara','කළුතර');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_kandy','prov_CP','kandy','Kandy','මහනුවර');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_matale','prov_CP','matale','Matale','මාතලේ');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_nuwaraeliya','prov_CP','nuwaraeliya','Nuwara Eliya','නුවරඑළිය');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_galle','prov_SP','galle','Galle','ගාල්ල');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_matara','prov_SP','matara','Matara','මාතර');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_hambantota','prov_SP','hambantota','Hambantota','හම්බන්තොට');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_jaffna','prov_NP','jaffna','Jaffna','යාපනය');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_kilinochchi','prov_NP','kilinochchi','Kilinochchi','කිලිනොච්චිය');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_mannar','prov_NP','mannar','Mannar','මන්නාරම');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_vavuniya','prov_NP','vavuniya','Vavuniya','වව්නියාව');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_mullaitivu','prov_NP','mullaitivu','Mullaitivu','මුලතිව්');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_batticaloa','prov_EP','batticaloa','Batticaloa','මඩකලපුව');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_ampara','prov_EP','ampara','Ampara','අම්පාර');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_trincomalee','prov_EP','trincomalee','Trincomalee','ත්‍රිකුණාමලය');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_kurunegala','prov_NW','kurunegala','Kurunegala','කුරුණෑගල');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_puttalam','prov_NW','puttalam','Puttalam','පුත්තලම');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_anuradhapura','prov_NC','anuradhapura','Anuradhapura','අනුරාධපුර');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_polonnaruwa','prov_NC','polonnaruwa','Polonnaruwa','පොළොන්නරුව');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_badulla','prov_UP','badulla','Badulla','බදුල්ල');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_monaragala','prov_UP','monaragala','Monaragala','මොණරාගල');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_ratnapura','prov_SG','ratnapura','Ratnapura','රත්නපුර');
-INSERT OR IGNORE INTO district(id,province_id,code,name_en,name_si) VALUES('dist_kegalle','prov_SG','kegalle','Kegalle','කෑගල්ල');
-
-INSERT OR IGNORE INTO ds_division(id,district_id,code,name_en,name_si) VALUES('ds_pathadumbara','dist_kandy','pathadumbara','Pathadumbara','පාතදුම්බර');
-INSERT OR IGNORE INTO ds_division(id,district_id,code,name_en,name_si) VALUES('ds_kandy4g','dist_kandy','kandy4g','Kandy Four Gravets','මහනුවර සිව් කෝරළේ');
-INSERT OR IGNORE INTO gn_division(id,ds_division_id,gn_code,name_en,name_si) VALUES('gn_645','ds_pathadumbara','645','Thalkotuwa','තල්කොටුව');
-INSERT OR IGNORE INTO gn_division(id,ds_division_id,gn_code,name_en,name_si) VALUES('gn_646','ds_pathadumbara','646','Pihilladeniya','පිහිල්ලදෙනිය');
-INSERT OR IGNORE INTO gn_division(id,ds_division_id,gn_code,name_en,name_si) VALUES('gn_647','ds_pathadumbara','647','Manikhinna','මැණික්හින්න');
-
--- NOTE: full island-wide DS/GN gazette (~331 DS, ~14,000 GN) to be imported from an official dataset.
 
 INSERT OR IGNORE INTO welfare_program(id,code,name_en,name_si,active,created_at,updated_at) VALUES('wp_aswesuma','aswesuma','Aswesuma','අස්වැසුම',1,datetime('now'),datetime('now'));
 INSERT OR IGNORE INTO welfare_program(id,code,name_en,name_si,active,created_at,updated_at) VALUES('wp_elderly_allowance','elderly_allowance','Elderly Allowance','වැඩිහිටි දීමනාව',1,datetime('now'),datetime('now'));
